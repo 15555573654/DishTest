@@ -182,12 +182,6 @@ export const dynamicRoutes = [
         meta: { title: '任务配置', icon: 'edit' }
       },
       {
-        path: 'connection',
-        component: () => import('@/views/mqtt/connection/index'),
-        name: 'MqttConnection',
-        meta: { title: '连接设置', icon: 'link' }
-      },
-      {
         path: 'log',
         component: () => import('@/views/mqtt/log/index'),
         name: 'MqttLog',

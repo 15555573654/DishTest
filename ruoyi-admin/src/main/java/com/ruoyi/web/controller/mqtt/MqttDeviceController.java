@@ -28,11 +28,10 @@ import com.ruoyi.system.domain.MqttDevice;
 import com.ruoyi.system.domain.vo.MqttDeviceStatistics;
 import com.ruoyi.system.service.IDeviceManagerService;
 import com.ruoyi.system.service.IMqttOperationLogService;
-import com.ruoyi.system.service.IMqttService;
 
 /**
  * MQTT设备Controller
- * 
+ *
  * @author ruoyi
  * @date 2025-01-19
  */
@@ -42,9 +41,6 @@ public class MqttDeviceController extends BaseController
 {
     @Autowired
     private IDeviceManagerService deviceManagerService;
-
-    @Autowired
-    private IMqttService mqttService;
 
     @Autowired
     private IMqttOperationLogService operationLogService;
@@ -122,7 +118,7 @@ public class MqttDeviceController extends BaseController
     public AjaxResult remove(@PathVariable Long[] deviceIds)
     {
         String username = SecurityUtils.getUsername();
-        
+
         // 获取设备名称列表
         StringBuilder deviceNames = new StringBuilder();
         for (Long deviceId : deviceIds)
@@ -130,24 +126,22 @@ public class MqttDeviceController extends BaseController
             MqttDevice device = deviceManagerService.selectMqttDeviceByDeviceId(deviceId);
             if (device != null)
             {
-                // 从MQTT清除设备主题
-                mqttService.deleteDevice(device.getDeviceName());
                 deviceNames.append(device.getDeviceName()).append(",");
             }
         }
 
         int result = deviceManagerService.deleteMqttDeviceByDeviceIds(deviceIds);
-        
+
         // 记录操作日志
-        operationLogService.logOperation(username, "删除设备", deviceNames.toString(), 
-                                        "删除设备ID: " + Arrays.toString(deviceIds), 
+        operationLogService.logOperation(username, "删除设备", deviceNames.toString(),
+                                        "删除设备ID: " + Arrays.toString(deviceIds),
                                         result > 0 ? "成功" : "失败", null);
-        
+
         return toAjax(result);
     }
 
     /**
-     * 发送命令到设备
+     * 发送命令到设备（已废弃，前端直接通过MQTT发送）
      */
     @PreAuthorize("@ss.hasPermi('mqtt:device:command')")
     @Log(title = "设备控制", businessType = BusinessType.OTHER)
@@ -164,34 +158,12 @@ public class MqttDeviceController extends BaseController
             return error("请选择设备");
         }
 
-        boolean allSuccess = true;
-        StringBuilder failedDevices = new StringBuilder();
+        // 前端已直接通过MQTT发送命令，此接口仅记录日志
+        operationLogService.logOperation(username, "设备控制-" + action,
+                                        String.join(",", deviceNames),
+                                        "操作: " + action, "成功", null);
 
-        for (String deviceName : deviceNames)
-        {
-            boolean success = mqttService.publishCommand(deviceName, action, null);
-            if (!success)
-            {
-                allSuccess = false;
-                failedDevices.append(deviceName).append(",");
-            }
-        }
-
-        // 记录操作日志
-        String result = allSuccess ? "成功" : "部分失败";
-        String errorMsg = allSuccess ? null : "失败设备: " + failedDevices.toString();
-        operationLogService.logOperation(username, "设备控制-" + action, 
-                                        String.join(",", deviceNames), 
-                                        "操作: " + action, result, errorMsg);
-
-        if (allSuccess)
-        {
-            return success("命令发送成功");
-        }
-        else
-        {
-            return error("部分设备命令发送失败: " + failedDevices.toString());
-        }
+        return success("命令已发送");
     }
 
     /**

@@ -11,12 +11,11 @@ import com.alibaba.fastjson2.JSON;
 import com.ruoyi.system.domain.MqttTaskConfig;
 import com.ruoyi.system.mapper.MqttTaskConfigMapper;
 import com.ruoyi.system.service.IDeviceManagerService;
-import com.ruoyi.system.service.IMqttService;
 import com.ruoyi.system.service.IMqttTaskConfigService;
 
 /**
  * MQTT任务配置服务实现
- * 
+ *
  * @author ruoyi
  * @date 2025-01-19
  */
@@ -27,9 +26,6 @@ public class MqttTaskConfigServiceImpl implements IMqttTaskConfigService
 
     @Autowired
     private MqttTaskConfigMapper mqttTaskConfigMapper;
-
-    @Autowired
-    private IMqttService mqttService;
 
     @Autowired
     private IDeviceManagerService deviceManagerService;
@@ -108,30 +104,10 @@ public class MqttTaskConfigServiceImpl implements IMqttTaskConfigService
                 return false;
             }
 
-            // 发送到每个设备
-            boolean allSuccess = true;
-            for (String deviceName : deviceNames)
-            {
-                // 发送任务配置
-                boolean sent = mqttService.publishTaskConfig(deviceName, config.getConfigContent());
-                if (sent)
-                {
-                    // 更新设备的任务配置名称
-                    deviceManagerService.updateDeviceStatus(deviceName, username, "在线");
-                    
-                    // 发送自定义命令66
-                    mqttService.sendCustomCommand(deviceName, 66, "自定义命令66");
-                    
-                    log.info("发送任务配置到设备: deviceName={}, configName={}", deviceName, config.getConfigName());
-                }
-                else
-                {
-                    allSuccess = false;
-                    log.error("发送任务配置失败: deviceName={}", deviceName);
-                }
-            }
+            // 前端已直接通过MQTT发送配置，此方法仅记录日志
+            log.info("任务配置已通过前端发送到设备: deviceNames={}, configName={}", deviceNames, config.getConfigName());
 
-            return allSuccess;
+            return true;
         }
         catch (Exception e)
         {
