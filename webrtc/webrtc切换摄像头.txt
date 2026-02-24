@@ -1,0 +1,15 @@
+Android WebRTC切换摄像头
+复制代码
+ if (videoCapturer != null) {
+            videoCapturer.switchCamera(new CameraVideoCapturer.CameraSwitchHandler() {
+                @Override
+                public void onCameraSwitchDone(boolean b) {
+                    Log.e(TAG, "switchCamera----->onCameraSwitchDone:" + b);
+                }
+
+                @Override
+                public void onCameraSwitchError(String s) {
+                    Log.e(TAG, "switchCamera----->onCameraSwitchError:" + s);
+                }
+            });
+        }

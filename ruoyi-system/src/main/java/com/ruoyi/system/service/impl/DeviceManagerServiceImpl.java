@@ -225,22 +225,37 @@ public class DeviceManagerServiceImpl implements IDeviceManagerService
     public MqttDevice selectMqttDeviceByDeviceId(Long deviceId)
     {
         MqttDevice device = mqttDeviceMapper.selectMqttDeviceByDeviceId(deviceId);
-        
+
         // 动态计算设备状态
         if (device != null && device.getLastOnline() != null)
         {
             long currentTime = System.currentTimeMillis();
             long heartbeatTimeout = 15000; // 15秒超时
             long timeSinceLastOnline = currentTime - device.getLastOnline().getTime();
-            
+
             if (timeSinceLastOnline > heartbeatTimeout)
             {
                 device.setDeviceStatus("离线");
                 device.setScriptStatus("未运行");
             }
         }
-        
+
         return device;
+    }
+
+    @Override
+    public MqttDevice selectMqttDeviceByName(String deviceName)
+    {
+        MqttDevice query = new MqttDevice();
+        query.setDeviceName(deviceName);
+        List<MqttDevice> devices = mqttDeviceMapper.selectMqttDeviceList(query);
+
+        if (devices != null && !devices.isEmpty())
+        {
+            return devices.get(0);
+        }
+
+        return null;
     }
 
     @Override

@@ -60,11 +60,19 @@ public interface IDeviceManagerService
 
     /**
      * 查询设备
-     * 
+     *
      * @param deviceId 设备ID
      * @return 设备对象
      */
     MqttDevice selectMqttDeviceByDeviceId(Long deviceId);
+
+    /**
+     * 根据设备名称查询设备
+     *
+     * @param deviceName 设备名称
+     * @return 设备对象
+     */
+    MqttDevice selectMqttDeviceByName(String deviceName);
 
     /**
      * 新增设备

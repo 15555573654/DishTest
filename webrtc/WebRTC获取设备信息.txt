@@ -1,0 +1,121 @@
+WebRTC获取设备信息
+一、概述
+
+　　1.新建一个Https服务端（Node，tomcat），看自己喜好。我这里用的NodeJs
+
+　　2.因为现在大多数浏览器已经支持了WebRTC（如果不支持，直接用Chrome），所以WebRTC的js包不需要导入，直接使用即可。
+
+　　3.在使用Chrome浏览器的时候要用https服务（也就是打开网页的链接要是https形式的），不然获取不到设备信息。
+
+　　4.我再本案例中用的是，nodejs服务+openssl自己弄了一个本地的https服务。
+
+　　5.由于是台式电脑，我让手机和电脑在一个局域网，用pc开发用手机浏览器测试。
+
+　　6.到此，环境描述就介绍完了。下面看看示例代码
+
+ 
+
+二、示例代码
+
+　　1.网页端代码
+
+　　
+
+复制代码
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>WebRTC获取设备信息测试</title>
+    <!-- 引入console -->
+    <script src="./js/vconsole.min.js">
+
+
+    </script>
+    //引入是为了多浏览器适配
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+
+
+</head>
+
+<body>
+    <div>
+        <label>audio input device:</label>
+        <select id="audioSource"></select>
+    </div>
+    <div>
+        <label>audio output device:</label>
+        <select id="audioOutput"></select>
+    </div>
+    <div>
+        <label>video input device:</label>
+        <select id="videoSource"></select>
+    </div>
+
+</body>
+<script>
+
+    // 初始化vconsole，可在网页上打印调试信息
+    var vConsole = new VConsole();
+    console.log('Hello world');
+</script>
+<script type="text/javascript" src="./js/device_info.js"></script>
+
+</html>
+复制代码
+　　2.网页端js代码
+
+　　
+
+复制代码
+//这种方式只有在chrome浏览器上有效，以内各个浏览器获取音视频权限的内部实现都不一样，所以这种方式在Safari和Firefox浏览器看不到设备名称
+'use strict'
+
+var audioSource = document.querySelector("select#audioSource");
+var audioOutput = document.querySelector("select#audioOutput");
+var videoSource = document.querySelector("select#videoSource");
+
+
+if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+    console.log("不支持获取设备信息");
+} else {
+    var ePromise = navigator.mediaDevices.enumerateDevices();
+    ePromise.then(getMediaInfoSuccess).catch(getMediaInfoFail);
+}
+
+
+/**
+ * 获取媒体信息成功
+ */
+function getMediaInfoSuccess(deviceInfos) {
+    deviceInfos.forEach(function (deviceInfo) {
+        console.log("设备种类：" + deviceInfo.kind);
+        console.log("设备名称：" + deviceInfo.label);
+        console.log("设备Id：" + deviceInfo.deviceId);
+        console.log("groupId:" + deviceInfo.groupId);
+        var option = document.createElement("option");
+        option.text = deviceInfo.label;//deviceInfo.label有可能会获取不到
+        option.value = deviceInfo.deviceId;
+        if (deviceInfo.kind === "audioinput") {
+            option.text  = "音频输入设备";
+            audioSource.appendChild(option);
+        } else if (deviceInfo.kind === "audiooutput") {
+            option.text = "音频输出设备";
+            audioOutput.appendChild(option);
+        } else if (deviceInfo.kind === "videoinput") {
+            option.text = "视频输入设备";
+            videoSource.appendChild(option);
+        }
+    });
+}
+
+
+/**
+ * 获取媒体信息失败
+ */
+function getMediaInfoFail(err) {
+    console.log(err.name + "|" + err.message);
+}
+复制代码
+　　3.服务端（可自行设计，什么形式的都行，只要支持https协议即可）

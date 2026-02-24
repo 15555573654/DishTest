@@ -1,0 +1,95 @@
+Android WebRTC实现屏幕共享
+一、WebRTC实现简单的屏幕共享
+
+　　屏幕共享原理：其实就还是利用系统提供的录屏服务，把录制好的屏幕内容通通过P2P发送给对等端，让对等端能够看到分享者的屏幕。其实对于分享者来说是推流，对于观看分享的端来说就是拉取视频流
+
+二、代码演示
+
+　　1.初始化截屏服务
+
+复制代码
+//屏幕截取服务
+    private MediaProjectionManager mediaProjectionManager = null;
+
+    private DeviceManager(Context context) {
+        this.context = context;
+        audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        if (Build.VERSION.SDK_INT >= 21) {
+            mediaProjectionManager = (MediaProjectionManager) context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        } else {
+            Toast.makeText(context, "您的设备不支持屏幕共享", Toast.LENGTH_SHORT).show();
+        }
+    }
+复制代码
+　　2.启动Android系统的屏幕共享　　
+
+复制代码
+ /**
+     * 开启屏幕截屏，调用此方法后会弹框提示用户开始截屏
+     * @param activity
+     */
+    public void startScreenCapture(Activity activity) {
+        if(mediaProjectionManager == null){
+            Toast.makeText(context, "截屏服务不可用", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = null;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            intent = mediaProjectionManager.createScreenCaptureIntent();
+            activity.startActivityForResult(intent, SCREEN_CAPTURE_REQUEST_CODE);
+        }
+
+    }
+复制代码
+　　3.启动系统的屏幕共享后会再当前Activity的onActivityResult中收到回调
+
+复制代码
+ @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == DeviceManager.SCREEN_CAPTURE_REQUEST_CODE) {
+            rtcClient.startShareScreen(data);
+        }
+    }
+复制代码
+　　rtcClient.startShareScreen(data)　　
+
+复制代码
+/**
+     * 开始分享屏幕
+     *
+     * @param intent 分享屏幕创建的intent，用于创建ScreenCaptureAndroid
+     */
+    public void startShareScreen(Intent intent) {
+        Log.e(TAG, "startShareScreen----->start");
+        //创建屏幕捕获
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (shareScreenCapture == null) {
+                shareScreenCapture = new ScreenCapturerAndroid(intent, new MediaProjection.Callback() {
+                    @Override
+                    public void onStop() {
+                        super.onStop();
+                    }
+                });
+            }
+        }
+        if (videoSource == null) {
+            Log.e(TAG, "startShareScreen----->createVideoSource");
+            videoSource = createVideoSource(shareScreenCapture);
+        }
+        Log.e(TAG, "startShareScreen----->startCapture");
+        shareScreenCapture.initialize(surfaceTextureHelper, context, videoSource.getCapturerObserver());
+        shareScreenCapture.startCapture(480, 640, 30);
+        if (videoTrack == null) {
+            Log.e(TAG, "startShareScreen----->createVideoTrack");
+            videoTrack = createVideoTrack(videoSource);
+        }
+        //将视频加入媒体流
+        Log.e(TAG, "startShareScreen----->createMediaStream");
+        mediaStream = createMediaStream();
+        mediaStream.addTrack(videoTrack);
+        Log.e(TAG, "startShareScreen----->end");
+    }
+复制代码
+　　其实除了前几步和P2P通信不一样外，后几步都是一样的：都是先创建一个VideoCapture，然后调用其startCapture方法--->创建VideoTrack--->创建mediaStrea--->然后将videoTrack加入mediaStream。

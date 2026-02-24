@@ -1,0 +1,204 @@
+Android WebRTC利用DataChannel收发文本数据和传输文件
+一、概述
+
+　　利用WebRTC的DataChannel发送文本数据以及传输文件
+
+二、实例代码演示
+
+　　1.初始化DataChannel以及注册DataChannel的回调函数
+
+复制代码
+ /**
+     * 创建DataChannel
+     *
+     * @param socketId 用户id
+     * @return 数据通道
+     */
+    public DataChannel createDataChannel(String socketId, PeerConnection peerConnection) {
+        if (dataChannelInit == null) {
+            /**
+             DataChannel.Init 可配参数说明：
+             ordered：是否保证顺序传输；
+             maxRetransmitTimeMs：重传允许的最长时间；
+             maxRetransmits：重传允许的最大次数；
+             */
+            dataChannelInit = new DataChannel.Init();
+            dataChannelInit.ordered = true; // 消息的传递是否有序 true代表有序
+            dataChannelInit.negotiated = true; // 协商方式
+            dataChannelInit.id = 0; // 通道ID
+        }
+        if (dataChannel == null) {
+            dataChannel = peerConnection.createDataChannel("dataChannel", dataChannelInit);
+            //注册DataChannel的回调函数
+            dataChannel.registerObserver(new DataChannel.Observer() {
+                boolean isHeader = true;
+                String suffix = null;
+                int fileLength = 0;
+                long currentLength = 0;
+                boolean isFinish = false;
+                List<byte[]> queue = new ArrayList<>();
+
+                //
+                @Override
+                public void onBufferedAmountChange(long l) {
+
+                }
+
+                //状态发生改变
+                @Override
+                public void onStateChange() {
+
+                }
+
+                /**
+                 * 接收二进制消息时需要定义一个简单的header用于存放文件信息
+                 * 1.filename 文件名
+                 * 2.suffix  后缀名
+                 * 3.totalLength 文件总大小
+                 * @param buffer
+                 */
+                //接收消息
+                @Override
+                public void onMessage(DataChannel.Buffer buffer) {
+                    try {
+                        ByteBuffer data = buffer.data;
+                        byte[] bytes = new byte[data.capacity()];
+                        Log.e(TAG, "initDataChannel----->onMessage--->" + bytes.length);
+                        data.get(bytes);
+                        if (dataChannelListener != null) {
+                            if (buffer.binary) {//是二进制数据
+                                if (isHeader) {
+                                    isHeader = false;//为false时就不是第一次，只有第一次需要检测文件后缀
+                                    //检测文件后缀
+                                    byte[] headerPayload = new byte[200];
+                                    System.arraycopy(bytes, 0, headerPayload, 0, 200);
+                                    String filePath = ByteUtil.getInstance().getStringFromByteArray(headerPayload);
+                                    byte[] lengthPayload = new byte[200];
+                                    System.arraycopy(bytes, 200, lengthPayload, 0, 20);
+                                    String length = ByteUtil.getInstance().getStringFromByteArray(lengthPayload);
+                                    Log.e(TAG, "initDataChannel----->onMessage--->filePath---->" + filePath);
+                                    Log.e(TAG, "initDataChannel----->onMessage--->length---->" + length);
+                                    suffix = FileUtils.getInstance().getFileSuffix(filePath);
+                                    fileLength = Integer.parseInt(length) - 220;
+                                    Log.e(TAG, "initDataChannel----->onMessage--->suffix---->" + suffix);
+                                }
+                                if (!isHeader) {
+                                    currentLength += bytes.length;
+                                    if ((currentLength - 220) >= fileLength) {
+                                        isFinish = true;
+                                    }
+                                    queue.add(bytes);
+                                    float progress = (currentLength / (float) fileLength) * 100;
+                                    dataChannelListener.onReceiveFileProgress(progress);
+                                }
+                                if (isFinish) {
+                                    String realPath = null;
+//                                    for (int i = 0; i < queue.size(); i++) {
+//                                        isFinish = false;
+//                                        if (i == queue.size() - 1) {
+//                                            isFinish = true;
+//                                        }
+//
+////
+//                                    }
+
+                                    queue.remove(0);
+                                    realPath = FileUtils.getInstance().writeBytesToFile(context, suffix, queue);
+                                    if (realPath != null) {
+                                        Log.e(TAG, "initDataChannel----->onMessage--->realPath----> 执行了多少次");
+                                        dataChannelListener.onReceiveBinaryMessage(socketId, realPath);
+                                    }
+
+                                }
+
+                            } else {//不是二进制数据
+                                //此处接收的是非二进制数据
+                                String msg = new String(bytes);
+                                dataChannelListener.onReceiveMessage(socketId, msg);
+                            }
+
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            });
+        }
+        return dataChannel;
+    }
+复制代码
+　　2.接收及发送文本消息　
+
+复制代码
+/**
+     * 使用DataChannel发送普通消息
+     *
+     * @param message
+     */
+    public void sendMsg(String message) {
+        if (dataChannel != null) {
+            if (message != null) {
+                byte[] msg = message.getBytes();
+                DataChannel.Buffer buffer = new DataChannel.Buffer(ByteBuffer.wrap(msg), false);
+                dataChannel.send(buffer);
+            }
+        }
+
+
+    }　
+复制代码
+复制代码
+//接收普通文本消息
+client.setDataChannelListener(new DataChannelListenerImpl() {
+            @Override
+            public void onReceiveMessage(String userId, String message) {
+                mainHandler.post(() -> {
+                    sb.append(userId).append(":").append(message).append("\n");
+                    tvContent.setText(sb.toString());
+                });
+
+            }
+
+
+        });
+复制代码
+ 
+
+　　3.接收及发送文件
+
+复制代码
+ /**
+     * 使用DataChannel发送二进制消息
+     *
+     * @param bytes
+     */
+    public void sendBinary(byte[] bytes) {
+        if (dataChannel != null) {
+            DataChannel.Buffer buffer = new DataChannel.Buffer(ByteBuffer.wrap(bytes), true);
+            dataChannel.send(buffer);
+        }
+    }　
+复制代码
+复制代码
+client.setDataChannelListener(new DataChannelListenerImpl() {
+
+           
+//接收文件消息成功回调以及，显示文件接收的进度
+ @Override
+            public void onReceiveBinaryMessage(String userId, String realPath) {
+                handler.post(() -> {
+                    tvReceiveFileName.setText(realPath);
+                });
+            }
+
+            @Override
+            public void onReceiveFileProgress(float progress) {
+                handler.post(() -> {
+                    tvReceiveFileName.setText(progress+"%");
+                });
+
+            }
+
+
+        });
