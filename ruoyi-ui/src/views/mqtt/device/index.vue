@@ -351,15 +351,11 @@ export default {
             connectTimeout: 10000
           };
 
-          console.log('尝试连接MQTT服务器:', url);
-          console.log('连接选项:', { ...options, password: '***' });
-
           try {
             this.mqttClient = mqtt.connect(url, options);
 
             // 连接成功
             this.mqttClient.on('connect', () => {
-              console.log('MQTT连接成功');
               this.isConnected = true;
               this.currentUsername = username;
               this.connecting = false;
@@ -405,13 +401,11 @@ export default {
 
             // 连接断开
             this.mqttClient.on('close', () => {
-              console.log('MQTT连接已断开');
               this.isConnected = false;
             });
 
             // 离线事件
             this.mqttClient.on('offline', () => {
-              console.log('MQTT客户端离线');
               this.connecting = false;
               this.isConnected = false;
             });
@@ -424,7 +418,6 @@ export default {
             // 设置超时，如果10秒内没有连接成功，则取消
             setTimeout(() => {
               if (this.connecting) {
-                console.error('连接超时');
                 this.connecting = false;
                 this.$modal.msgError("连接超时，请检查MQTT服务器配置");
                 if (this.mqttClient) {
@@ -442,6 +435,23 @@ export default {
         }
       });
     },
+    /** 统一脚本状态 */
+    normalizeScriptStatus(rawStatus) {
+      const statusMap = {
+        '停止': '未运行',
+        '运行中': '运行中',
+        '暂停': '暂停',
+        '在线': '运行中',
+        'stopped': '未运行',
+        'running': '运行中',
+        'paused': '暂停'
+      };
+      return statusMap[rawStatus] || rawStatus;
+    },
+    /** 获取脚本状态字段（兼容中英文） */
+    getRawScriptStatus(data) {
+      return data.scriptStatus !== undefined ? data.scriptStatus : data.运行状态;
+    },
     /** 订阅主题 */
     subscribeTopics(username) {
       if (!this.mqttClient) return;
@@ -456,16 +466,12 @@ export default {
         this.mqttClient.subscribe(topic, { qos: 1 }, (err) => {
           if (err) {
             console.error('订阅主题失败:', topic, err);
-          } else {
-            console.log('订阅主题成功:', topic);
           }
         });
       });
     },
     /** 处理MQTT消息 */
     handleMqttMessage(topic, payload) {
-      console.log('收到MQTT消息:', topic, payload);
-
       try {
         const data = JSON.parse(payload);
         const deviceName = data.deviceName;
@@ -474,9 +480,6 @@ export default {
           console.warn('消息中没有deviceName:', payload);
           return;
         }
-
-        console.log('设备名称:', deviceName);
-        console.log('当前realtimeDevices:', this.realtimeDevices);
 
         // 初始化设备数据
         if (!this.realtimeDevices[deviceName]) {
@@ -492,13 +495,9 @@ export default {
             lastOnline: new Date()
           };
           this.$set(this.realtimeDevices, deviceName, newDevice);
-          console.log('创建新设备:', deviceName, newDevice);
-          console.log('创建后realtimeDevices:', this.realtimeDevices);
         }
 
         const device = this.realtimeDevices[deviceName];
-        console.log('当前设备对象:', device);
-
         // 处理状态消息
         // 实际主题格式为: status/{username}/{deviceName}
         if (topic.startsWith('status/')) {
@@ -509,55 +508,31 @@ export default {
             this.dataChanged = true;
           }
           // 同时尝试从状态消息里更新脚本状态（如果客户端在这里返回）
-          const rawScriptStatus = data.scriptStatus || data.运行状态;
+          const rawScriptStatus = this.getRawScriptStatus(data);
           if (rawScriptStatus !== undefined) {
-            const statusMap = {
-              '停止': '未运行',
-              '运行中': '运行中',
-              '暂停': '暂停',
-              '在线': '运行中',
-              'stopped': '未运行',
-              'running': '运行中',
-              'paused': '暂停'
-            };
-            const scriptStatus = statusMap[rawScriptStatus] || rawScriptStatus;
-            this.$set(device, 'scriptStatus', scriptStatus);
+            this.$set(device, 'scriptStatus', this.normalizeScriptStatus(rawScriptStatus));
             this.dataChanged = true;
           }
         }
         // 处理响应消息（命令执行结果）
         // 实际主题格式为: response/{username}/{deviceName}
         else if (topic.startsWith('response/')) {
-          const rawScriptStatus = data.scriptStatus || data.运行状态;
+          const rawScriptStatus = this.getRawScriptStatus(data);
           if (rawScriptStatus !== undefined) {
-            const statusMap = {
-              '停止': '未运行',
-              '运行中': '运行中',
-              '暂停': '暂停',
-              '在线': '运行中',
-              'stopped': '未运行',
-              'running': '运行中',
-              'paused': '暂停'
-            };
-            const scriptStatus = statusMap[rawScriptStatus] || rawScriptStatus;
-            this.$set(device, 'scriptStatus', scriptStatus);
+            this.$set(device, 'scriptStatus', this.normalizeScriptStatus(rawScriptStatus));
             this.dataChanged = true;
           }
         }
         // 处理配置消息
         // 实际主题格式为: config/{username}/{deviceName}
         else if (topic.startsWith('config/')) {
-          console.log('处理配置消息, data.type:', data.type, 'data.msg:', data.msg);
           this.$set(device, 'deviceStatus', '在线');
           this.$set(device, 'lastOnline', new Date());
 
           if (data.type === 'post' && data.msg) {
-            console.log('进入msg解析分支');
             // msg字段是JSON字符串，需要再次解析
             try {
               const msgData = JSON.parse(data.msg);
-              console.log('解析后的msg数据:', msgData);
-
               // 兼容旧版(中文字段)和新版(英文字段)的键名
               const levelVal = msgData.等级 !== undefined ? msgData.等级 : msgData.level;
               const serverVal = msgData.区服 !== undefined ? msgData.区服 : msgData.server;
@@ -565,36 +540,22 @@ export default {
               const statusRaw = msgData.运行状态 !== undefined ? msgData.运行状态 : msgData.scriptStatus;
 
               if (levelVal !== undefined) {
-                console.log('更新等级:', levelVal);
                 this.$set(device, 'level', levelVal);
               }
               if (serverVal !== undefined) {
-                console.log('更新区服:', serverVal);
                 this.$set(device, 'server', serverVal);
               }
               if (diamondsVal !== undefined) {
-                console.log('更新钻石:', diamondsVal);
                 this.$set(device, 'diamonds', diamondsVal);
               }
               if (statusRaw !== undefined) {
-                const statusMap = {
-                  '停止': '未运行',
-                  '运行中': '运行中',
-                  '暂停': '暂停',
-                  '在线': '运行中'
-                };
-                const scriptStatus = statusMap[statusRaw] || statusRaw;
-                console.log('运行状态/scriptStatus:', statusRaw, '-> scriptStatus:', scriptStatus);
-                this.$set(device, 'scriptStatus', scriptStatus);
+                this.$set(device, 'scriptStatus', this.normalizeScriptStatus(statusRaw));
               }
 
               this.dataChanged = true;
-              console.log('更新设备数据完成:', deviceName, JSON.stringify(device, null, 2));
             } catch (e) {
               console.error('解析msg字段失败:', e, data.msg);
             }
-          } else {
-            console.log('不满足条件: type=' + data.type + ', msg存在=' + !!data.msg);
           }
         }
 
@@ -608,12 +569,7 @@ export default {
     },
     /** 更新设备列表显示 */
     updateDeviceList() {
-      console.log('更新设备列表, realtimeDevices:', this.realtimeDevices);
-
       const devices = Object.values(this.realtimeDevices);
-      console.log('设备数组:', devices);
-      console.log('设备数组JSON:', JSON.stringify(devices, null, 2));
-
       // 应用筛选条件
       let filteredDevices = devices;
 
@@ -644,12 +600,6 @@ export default {
       this.deviceList = [...filteredDevices.slice(start, end)];
       this.loading = false;
 
-      console.log('更新后的deviceList:', this.deviceList);
-      console.log('deviceList JSON:', JSON.stringify(this.deviceList, null, 2));
-      console.log('总数:', this.total);
-
-      // 强制更新视图
-      this.$forceUpdate();
     },
     /** 更新统计信息 */
     updateStatistics() {
@@ -671,6 +621,9 @@ export default {
     },
     /** 启动自动保存 */
     startAutoSave() {
+      if (this.saveTimer) {
+        clearInterval(this.saveTimer);
+      }
       // 每30秒保存一次到数据库
       this.saveTimer = setInterval(() => {
         if (this.dataChanged) {
@@ -685,8 +638,8 @@ export default {
       const devices = Object.values(this.realtimeDevices);
       if (devices.length === 0) return;
 
-        // 将 lastOnline 转成后端需要的字符串格式 yyyy-MM-dd HH:mm:ss
-        const payloadDevices = devices.map(d => {
+      // 将 lastOnline 转成后端需要的字符串格式 yyyy-MM-dd HH:mm:ss
+      const payloadDevices = devices.map(d => {
           const device = { ...d };
           if (device.lastOnline) {
             try {
@@ -701,11 +654,8 @@ export default {
           return device;
         });
 
-        console.log('保存设备数据到数据库:', payloadDevices.length, '个设备');
-
       // 调用后端API批量保存
-        batchSaveDevices(payloadDevices).then(response => {
-        console.log('设备数据保存成功:', response.msg);
+      batchSaveDevices(payloadDevices).then(() => {
         this.dataChanged = false;
       }).catch(error => {
         console.error('设备数据保存失败:', error);
@@ -776,7 +726,7 @@ export default {
 
         // 将历史数据加载到realtimeDevices
         response.rows.forEach(device => {
-          this.realtimeDevices[device.deviceName] = { ...device };
+          this.$set(this.realtimeDevices, device.deviceName, { ...device });
         });
       });
     },
