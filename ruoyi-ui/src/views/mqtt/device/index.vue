@@ -241,7 +241,7 @@ export default {
       currentUsername: '',
       connecting: false,
       connectionForm: {
-        mqttHost: '192.168.1.120',
+        mqttHost: '192.168.1.132',
         mqttPort: '8083',
         username: '',
         password: ''
@@ -294,7 +294,7 @@ export default {
     };
   },
   created() {
-    // 从localStorage加载连接配置
+    // 从localStorage加载连接配置（只加载用户名和密码）
     this.loadConnectionConfig();
     // 加载历史设备数据
     this.getList();
@@ -311,23 +311,27 @@ export default {
     }
   },
   methods: {
-    /** 加载连接配置 */
+    /** 加载连接配置（只加载用户名和密码） */
     loadConnectionConfig() {
       const config = localStorage.getItem('mqttConnectionConfig');
       if (config) {
         try {
           const savedConfig = JSON.parse(config);
-          this.connectionForm = { ...this.connectionForm, ...savedConfig };
+          // 只恢复用户名和密码，不恢复服务器IP和端口
+          if (savedConfig.username) {
+            this.connectionForm.username = savedConfig.username;
+          }
+          if (savedConfig.password) {
+            this.connectionForm.password = savedConfig.password;
+          }
         } catch (e) {
           console.error('加载连接配置失败', e);
         }
       }
     },
-    /** 保存连接配置 */
+    /** 保存连接配置（只保存用户名和密码） */
     saveConnectionConfig() {
       const config = {
-        mqttHost: this.connectionForm.mqttHost,
-        mqttPort: this.connectionForm.mqttPort,
         username: this.connectionForm.username,
         password: this.connectionForm.password
       };
