@@ -18,6 +18,10 @@
             <i class="el-icon-time"></i>
             {{ currentStats.rtt }}ms
           </span>
+          <span class="fps-badge" :class="getFpsClass()">
+            <i class="el-icon-video-camera"></i>
+            {{ currentStats.fps }}fps
+          </span>
         </div>
         <div class="toolbar-actions">
           <i class="el-icon-setting" @click.stop="showSettings = !showSettings"></i>
@@ -54,7 +58,7 @@
             <i class="el-icon-picture"></i>
             <span>截图</span>
           </div>
-          <div class="control-item" @click.stop="requestScreenShare">
+          <div class="control-item" @click.stop="handleRefresh" :class="{ disabled: !isStreaming }">
             <i class="el-icon-refresh"></i>
             <span>刷新</span>
           </div>
@@ -77,6 +81,7 @@
         <div class="stats-divider"></div>
         
         <!-- 自定义设置 -->
+        <div class="setting-section-title">自定义设置</div>
         <div class="setting-item">
           <span>分辨率</span>
           <el-input 
@@ -90,13 +95,21 @@
           <span>帧率</span>
           <el-select 
             v-model="videoConstraints.frameRate" 
-            size="mini" 
-            @change="applyVideoSettings"
+            size="mini"
             :disabled="currentQuality === 'auto'"
           >
             <el-option label="30 fps" :value="30" />
             <el-option label="60 fps" :value="60" />
           </el-select>
+        </div>
+        <div class="setting-item" v-if="currentQuality !== 'auto'">
+          <el-button 
+            type="primary" 
+            size="mini" 
+            style="width: 100%"
+            @click="applyVideoSettings"
+            :disabled="!isStreaming"
+          >应用设置</el-button>
         </div>
         
         <!-- 统计信息 -->
@@ -104,16 +117,24 @@
         <div class="stats-section">
           <div class="stats-title">连接统计</div>
           <div class="stats-item">
+            <span>期望分辨率:</span>
+            <span>{{ getExpectedResolution() }}</span>
+          </div>
+          <div class="stats-item">
+            <span>实际分辨率:</span>
+            <span :class="{ 'stats-warning': !isResolutionMatched() }">{{ currentStats.resolution || '-' }}</span>
+          </div>
+          <div class="stats-item">
+            <span>期望帧率:</span>
+            <span>{{ videoConstraints.frameRate }} fps</span>
+          </div>
+          <div class="stats-item">
+            <span>实际帧率:</span>
+            <span :class="{ 'stats-warning': currentStats.fps < videoConstraints.frameRate * 0.8 }">{{ currentStats.fps }} fps</span>
+          </div>
+          <div class="stats-item">
             <span>比特率:</span>
             <span>{{ currentStats.bitrate }} kbps</span>
-          </div>
-          <div class="stats-item">
-            <span>帧率:</span>
-            <span>{{ currentStats.fps }} fps</span>
-          </div>
-          <div class="stats-item">
-            <span>分辨率:</span>
-            <span>{{ currentStats.resolution || '-' }}</span>
           </div>
           <div class="stats-item">
             <span>延迟:</span>
@@ -263,57 +284,64 @@ export default {
         if (this.$refs.remoteVideo) {
           const video = this.$refs.remoteVideo;
           
-          // 设置视频源
-          video.srcObject = stream;
-          
-          // 优化视频播放设置 - 降低延迟
-          video.playsInline = true;
-          video.muted = false; // 启用音频
-          video.autoplay = true;
-          
-          // 设置低延迟属性
-          if (video.hasAttribute) {
-            video.setAttribute('playsinline', '');
-            video.setAttribute('webkit-playsinline', '');
-          }
-          
-          // 关键：设置视频缓冲区为最小值以降低延迟
-          try {
-            // 尝试设置 latencyHint（Chrome 支持）
-            if ('latencyHint' in video) {
-              video.latencyHint = 0; // 最低延迟
+          // 检查是否是同一个流，如果不是则更新
+          if (!video.srcObject || video.srcObject.id !== stream.id) {
+            console.log('设置新的视频流，流ID:', stream.id);
+            
+            // 设置视频源
+            video.srcObject = stream;
+            
+            // 优化视频播放设置 - 降低延迟
+            video.playsInline = true;
+            video.muted = false; // 启用音频
+            video.autoplay = true;
+            
+            // 设置低延迟属性
+            if (video.hasAttribute) {
+              video.setAttribute('playsinline', '');
+              video.setAttribute('webkit-playsinline', '');
             }
             
-            // 设置预加载策略
-            video.preload = 'auto';
-            
-            // 禁用画中画
-            video.disablePictureInPicture = true;
-            
-            // 设置控制条（可选）
-            video.controls = false;
-          } catch (err) {
-            console.warn('部分视频属性设置失败:', err);
-          }
-          
-          console.log('✓ 视频元素srcObject已设置');
-          
-          // 播放视频
-          video.play().then(() => {
-            console.log('✓ 视频开始播放');
-            
-            // 尝试进入低延迟模式
-            this.enableLowLatencyMode(video);
-            
-            // 启动统计信息监控
-            this.startStatsMonitoring();
-          }).catch(err => {
-            console.error('✗ 视频播放失败:', err);
-            // 如果自动播放失败，可能需要用户交互
-            if (err.name === 'NotAllowedError') {
-              this.$message.warning('请点击视频区域以开始播放');
+            // 关键：设置视频缓冲区为最小值以降低延迟
+            try {
+              // 尝试设置 latencyHint（Chrome 支持）
+              if ('latencyHint' in video) {
+                video.latencyHint = 0; // 最低延迟
+              }
+              
+              // 设置预加载策略
+              video.preload = 'auto';
+              
+              // 禁用画中画
+              video.disablePictureInPicture = true;
+              
+              // 设置控制条（可选）
+              video.controls = false;
+            } catch (err) {
+              console.warn('部分视频属性设置失败:', err);
             }
-          });
+            
+            console.log('✓ 视频元素srcObject已设置');
+            
+            // 播放视频
+            video.play().then(() => {
+              console.log('✓ 视频开始播放');
+              
+              // 尝试进入低延迟模式
+              this.enableLowLatencyMode(video);
+              
+              // 启动统计信息监控
+              this.startStatsMonitoring();
+            }).catch(err => {
+              console.error('✗ 视频播放失败:', err);
+              // 如果自动播放失败，可能需要用户交互
+              if (err.name === 'NotAllowedError') {
+                this.$message.warning('请点击视频区域以开始播放');
+              }
+            });
+          } else {
+            console.log('视频元素已有相同流，跳过重复设置');
+          }
         }
         
         this.isStreaming = true;
@@ -387,7 +415,27 @@ export default {
         this.connectionStatus = 'connecting';
         this.statusText = '正在建立连接...';
         
-        await this.webrtcManager.start();
+        // 准备视频约束
+        let constraints = null;
+        if (this.videoConstraints.resolution !== 'auto') {
+          const resolutionParts = this.videoConstraints.resolution.split('x');
+          if (resolutionParts.length === 2) {
+            constraints = {
+              width: parseInt(resolutionParts[0]),
+              height: parseInt(resolutionParts[1]),
+              frameRate: this.videoConstraints.frameRate
+            };
+          }
+        } else {
+          // 自动模式，使用默认高质量设置
+          constraints = {
+            width: 1920,
+            height: 1080,
+            frameRate: 60
+          };
+        }
+        
+        await this.webrtcManager.start(constraints);
         this.$message.success('正在建立连接...');
       } catch (e) {
         console.error('开始投屏失败:', e);
@@ -406,6 +454,11 @@ export default {
       this.connectionStatus = 'disconnected';
       this.isStreaming = false;
       this.statusText = '已停止';
+      
+      // 清除视频元素
+      if (this.$refs.remoteVideo) {
+        this.$refs.remoteVideo.srcObject = null;
+      }
     },
     
     /** 启动统计信息监控 */
@@ -608,9 +661,36 @@ export default {
       this.$message.success('已发送屏幕共享请求');
     },
     
+    /** 刷新连接 */
+    async handleRefresh() {
+      if (!this.isStreaming) {
+        this.$message.warning('当前没有活动连接');
+        return;
+      }
+      
+      try {
+        this.$message.info('正在刷新连接...');
+        
+        // 停止当前连接
+        this.stopScreencast();
+        
+        // 等待一小段时间确保资源释放
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 重新开始投屏
+        await this.startScreencast();
+        
+        this.$message.success('连接已刷新');
+      } catch (error) {
+        console.error('刷新连接失败:', error);
+        this.$message.error('刷新连接失败: ' + error.message);
+      }
+    },
+    
     /** 应用视频设置 */
-    applyVideoSettings() {
-      if (!this.webrtcManager || !this.webrtcManager.isDataChannelOpen()) {
+    async applyVideoSettings() {
+      if (!this.webrtcManager || !this.webrtcManager.peerConnection) {
+        this.$message.warning('请先建立连接');
         return;
       }
 
@@ -620,15 +700,35 @@ export default {
         return;
       }
 
-      const [width, height] = this.videoConstraints.resolution.split('x');
+      const resolutionParts = this.videoConstraints.resolution.split('x');
+      if (resolutionParts.length !== 2) {
+        this.$message.error('分辨率格式错误，应为: 宽x高 (如: 1920x1080)');
+        return;
+      }
 
-      this.webrtcManager.updateVideoSettings({
-        width: parseInt(width),
-        height: parseInt(height),
-        frameRate: this.videoConstraints.frameRate
-      });
-      
-      this.$message.success('视频设置已更新');
+      const width = parseInt(resolutionParts[0]);
+      const height = parseInt(resolutionParts[1]);
+
+      if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+        this.$message.error('分辨率数值无效');
+        return;
+      }
+
+      console.log('应用新的视频设置:', { width, height, frameRate: this.videoConstraints.frameRate });
+
+      try {
+        // 使用重新协商来应用新的视频设置
+        await this.webrtcManager.renegotiate({
+          width: width,
+          height: height,
+          frameRate: this.videoConstraints.frameRate
+        });
+        
+        this.$message.success(`正在应用新设置: ${width}x${height}@${this.videoConstraints.frameRate}fps，请等待设备响应...`);
+      } catch (error) {
+        console.error('应用视频设置失败:', error);
+        this.$message.error('应用视频设置失败: ' + error.message);
+      }
     },
     
     /** 应用质量预设 */
@@ -637,8 +737,13 @@ export default {
       if (preset) {
         this.videoConstraints.resolution = preset.resolution;
         this.videoConstraints.frameRate = preset.frameRate;
-        this.applyVideoSettings();
-        this.$message.success(`已切换到${preset.label}模式`);
+        
+        // 如果不是自动模式，立即应用设置
+        if (this.currentQuality !== 'auto') {
+          this.applyVideoSettings();
+        } else {
+          this.$message.success(`已切换到${preset.label}模式`);
+        }
       }
     },
     
@@ -650,6 +755,32 @@ export default {
       if (rtt < 100) return 'latency-good';
       if (rtt < 200) return 'latency-fair';
       return 'latency-poor';
+    },
+    
+    /** 获取帧率等级样式 */
+    getFpsClass() {
+      const fps = this.currentStats.fps;
+      if (fps === 0) return 'fps-unknown';
+      if (fps >= 55) return 'fps-excellent';
+      if (fps >= 45) return 'fps-good';
+      if (fps >= 30) return 'fps-fair';
+      return 'fps-poor';
+    },
+    
+    /** 获取期望的分辨率 */
+    getExpectedResolution() {
+      if (this.videoConstraints.resolution === 'auto') {
+        return '自动';
+      }
+      return this.videoConstraints.resolution;
+    },
+    
+    /** 检查分辨率是否匹配 */
+    isResolutionMatched() {
+      if (!this.currentStats.resolution || this.videoConstraints.resolution === 'auto') {
+        return true;
+      }
+      return this.currentStats.resolution === this.videoConstraints.resolution;
     },
     
     /** 全屏切换 */
@@ -864,6 +995,46 @@ export default {
   color: #F56C6C;
 }
 
+.fps-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.fps-badge i {
+  font-size: 12px;
+}
+
+.fps-unknown {
+  background: rgba(144, 147, 153, 0.3);
+  color: #909399;
+}
+
+.fps-excellent {
+  background: rgba(103, 194, 58, 0.3);
+  color: #67C23A;
+}
+
+.fps-good {
+  background: rgba(103, 194, 58, 0.2);
+  color: #85CE61;
+}
+
+.fps-fair {
+  background: rgba(230, 162, 60, 0.3);
+  color: #E6A23C;
+}
+
+.fps-poor {
+  background: rgba(245, 108, 108, 0.3);
+  color: #F56C6C;
+}
+
 .toolbar-actions {
   display: flex;
   gap: 15px;
@@ -1008,6 +1179,14 @@ export default {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.6);
   margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.setting-section-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 10px 0 8px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }

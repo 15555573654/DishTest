@@ -45,6 +45,13 @@ export default class WebRTCManager {
     // 自适应质量调整
     this.qualityAdjustmentInterval = null;
     
+    // 视频约束配置（用于重新协商）
+    this.videoConstraints = {
+      width: 1920,
+      height: 1080,
+      frameRate: 60
+    };
+    
     // 事件回调
     this.callbacks = {
       onConnectionStateChange: null,
@@ -164,28 +171,28 @@ export default class WebRTCManager {
       console.log('轨道类型:', event.track.kind);
       
       if (event.streams && event.streams.length > 0) {
-        const audioTracks = event.streams[0].getAudioTracks();
-        const videoTracks = event.streams[0].getVideoTracks();
+        const stream = event.streams[0];
+        const audioTracks = stream.getAudioTracks();
+        const videoTracks = stream.getVideoTracks();
         console.log(`音频轨道: ${audioTracks.length}, 视频轨道: ${videoTracks.length}`);
         
-        this.remoteStream = event.streams[0];
-        
-        // 优化视频轨道设置
-        videoTracks.forEach(track => {
-          // 请求高质量视频
-          if (track.applyConstraints) {
-            track.applyConstraints({
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              frameRate: { ideal: 30 }
-            }).catch(err => {
-              console.warn('应用视频约束失败:', err);
-            });
+        // 只在第一次收到轨道时设置流，避免重复设置
+        if (!this.remoteStream) {
+          this.remoteStream = stream;
+          
+          // 注意：接收端不应该对远程轨道应用约束
+          // 视频质量由发送端（设备端）控制
+          console.log('远程流已接收，视频质量由设备端控制');
+          
+          if (this.callbacks.onTrack) {
+            this.callbacks.onTrack(this.remoteStream, { audioTracks, videoTracks });
           }
-        });
-        
-        if (this.callbacks.onTrack) {
-          this.callbacks.onTrack(this.remoteStream, { audioTracks, videoTracks });
+        } else {
+          // 如果已经有流了，只是添加了新轨道，更新回调
+          console.log('远程流已存在，轨道已添加');
+          if (this.callbacks.onTrack) {
+            this.callbacks.onTrack(this.remoteStream, { audioTracks, videoTracks });
+          }
         }
       }
     };
@@ -269,9 +276,14 @@ export default class WebRTCManager {
   /**
    * 开始连接
    */
-  async start() {
+  async start(videoConstraints = null) {
     try {
       this.connectionState = 'connecting';
+      
+      // 如果提供了视频约束，保存它
+      if (videoConstraints) {
+        this.videoConstraints = { ...videoConstraints };
+      }
       
       // 创建 PeerConnection
       await this.createPeerConnection();
@@ -294,12 +306,15 @@ export default class WebRTCManager {
       
       await this.peerConnection.setLocalDescription(offer);
       
-      // 通过 MQTT 发送 Offer
+      // 通过 MQTT 发送 Offer，包含视频约束
       this.sendSignaling({
         type: 'offer',
         deviceName: this.deviceName,
-        offer: offer
+        offer: offer,
+        videoConstraints: this.videoConstraints
       });
+      
+      console.log('📤 发送给设备的视频约束:', JSON.stringify(this.videoConstraints, null, 2));
       
       // 启动自适应质量调整（每 5 秒检查一次）
       this.startQualityAdjustment();
@@ -322,16 +337,16 @@ export default class WebRTCManager {
     let optimizedSDP = sdp;
     
     // 设置视频编码参数
-    // 1. 大幅提高最大比特率以支持高帧率
+    // 1. 大幅提高最大比特率以支持高帧率和高分辨率
     optimizedSDP = optimizedSDP.replace(
       /(m=video.*\r\n)/g,
-      '$1b=AS:10000\r\n' // 设置最大带宽为 10000 kbps（10Mbps）以支持高帧率
+      '$1b=AS:20000\r\n' // 提高到 20Mbps 以支持高分辨率高帧率
     );
     
     // 2. 添加 TIAS (Transport Independent Application Specific Maximum) 带宽限制
     optimizedSDP = optimizedSDP.replace(
-      /(b=AS:10000\r\n)/g,
-      '$1b=TIAS:10000000\r\n' // 10 Mbps in bits per second
+      /(b=AS:20000\r\n)/g,
+      '$1b=TIAS:20000000\r\n' // 20 Mbps in bits per second
     );
     
     // 3. 优先使用 H.264 编码（更好的硬件支持和质量）
@@ -346,12 +361,12 @@ export default class WebRTCManager {
         optimizedSDP = optimizedSDP.replace(
           h264FmtpRegex,
           // 提高 max-mbps 以支持 60fps
-          `a=fmtp:${h264PayloadType} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f;max-mbps=432000;max-fs=8192;max-br=10000`
+          `a=fmtp:${h264PayloadType} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034;max-mbps=972000;max-fs=36864;max-br=20000`
         );
       } else {
         optimizedSDP = optimizedSDP.replace(
           h264Regex,
-          `$&\r\na=fmtp:${h264PayloadType} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f;max-mbps=432000;max-fs=8192;max-br=10000`
+          `$&\r\na=fmtp:${h264PayloadType} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640034;max-mbps=972000;max-fs=36864;max-br=20000`
         );
       }
       
@@ -435,7 +450,8 @@ export default class WebRTCManager {
       }
     }
     
-    console.log('✓ SDP 已优化（高质量高帧率低延迟模式）');
+    console.log('✓ SDP 已优化（高质量高帧率低延迟模式 - 20Mbps, High Profile）');
+    console.log('当前视频约束:', this.videoConstraints);
     return optimizedSDP;
   }
   
@@ -496,10 +512,65 @@ export default class WebRTCManager {
    * 更新视频设置
    */
   updateVideoSettings(settings) {
+    // 保存新的视频约束
+    this.videoConstraints = { ...settings };
+    
+    console.log('更新视频设置:', settings);
+    
+    // 发送给设备端
     return this.sendMessage({
       action: 'updateVideoSettings',
       settings: settings
     });
+  }
+  
+  /**
+   * 重新协商连接（用于应用新的视频设置）
+   */
+  async renegotiate(videoConstraints) {
+    if (!this.peerConnection) {
+      throw new Error('PeerConnection 未初始化');
+    }
+    
+    console.log('开始重新协商，新的视频约束:', videoConstraints);
+    
+    // 更新视频约束
+    this.videoConstraints = { ...videoConstraints };
+    
+    try {
+      // 创建新的 Offer
+      const offerOptions = {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+        iceRestart: false
+      };
+      
+      const offer = await this.peerConnection.createOffer(offerOptions);
+      
+      // 优化 SDP
+      offer.sdp = this.optimizeSDP(offer.sdp);
+      
+      await this.peerConnection.setLocalDescription(offer);
+      
+      // 发送新的 Offer 和视频约束
+      this.sendSignaling({
+        type: 'offer',
+        deviceName: this.deviceName,
+        offer: offer,
+        videoConstraints: this.videoConstraints,
+        renegotiate: true
+      });
+      
+      console.log('🔄 重新协商 - 发送给设备的视频约束:', JSON.stringify(this.videoConstraints, null, 2));
+      console.log('✓ 重新协商 Offer 已发送');
+      return true;
+    } catch (error) {
+      console.error('重新协商失败:', error);
+      if (this.callbacks.onError) {
+        this.callbacks.onError('重新协商失败: ' + error.message);
+      }
+      throw error;
+    }
   }
   
   /**
@@ -610,6 +681,8 @@ export default class WebRTCManager {
       this.remoteStream.getTracks().forEach(track => track.stop());
       this.remoteStream = null;
     }
+    
+    console.log('✓ WebRTC 资源已清理');
   }
   
   /**

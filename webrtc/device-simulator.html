@@ -425,9 +425,13 @@
                         alert('⚠ 警告：未捕获音频！\n\n请重新捕获并勾选以下选项：\n- 标签页共享：勾选"共享标签页音频"\n- 屏幕共享：勾选"共享系统音频"');
                     }
                 } else if (sourceType === 'camera') {
-                    // 摄像头（包含音频）
+                    // 摄像头（包含音频）- 使用更高的分辨率和帧率
                     localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: 1280, height: 720 },
+                        video: { 
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 },
+                            frameRate: { ideal: 60 }
+                        },
                         audio: {
                             echoCancellation: true,
                             noiseSuppression: true
@@ -438,10 +442,23 @@
                     const audioTracks = localStream.getAudioTracks();
                     const videoTracks = localStream.getVideoTracks();
                     log('视频轨道: ' + videoTracks.length + ', 音频轨道: ' + audioTracks.length, 'success');
+                    
+                    // 显示实际捕获的参数
+                    videoTracks.forEach(track => {
+                        const settings = track.getSettings();
+                        log('摄像头实际参数:', 'info');
+                        log('  宽度: ' + settings.width, 'info');
+                        log('  高度: ' + settings.height, 'info');
+                        log('  帧率: ' + settings.frameRate + ' fps', 'info');
+                    });
                 } else {
-                    // 测试视频（使用摄像头代替）
+                    // 测试视频（使用摄像头代替）- 使用更高的分辨率和帧率
                     localStream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
+                        video: {
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 },
+                            frameRate: { ideal: 60 }
+                        },
                         audio: true
                     });
                     log('测试视频已启动', 'success');
@@ -449,6 +466,15 @@
                     const audioTracks = localStream.getAudioTracks();
                     const videoTracks = localStream.getVideoTracks();
                     log('视频轨道: ' + videoTracks.length + ', 音频轨道: ' + audioTracks.length, 'success');
+                    
+                    // 显示实际捕获的参数
+                    videoTracks.forEach(track => {
+                        const settings = track.getSettings();
+                        log('测试视频实际参数:', 'info');
+                        log('  宽度: ' + settings.width, 'info');
+                        log('  高度: ' + settings.height, 'info');
+                        log('  帧率: ' + settings.frameRate + ' fps', 'info');
+                    });
                 }
                 
                 localVideo.srcObject = localStream;
@@ -501,7 +527,18 @@
                 
                 switch (data.type) {
                     case 'offer':
-                        await handleOffer(data.offer);
+                        // 提取视频约束和重新协商标志
+                        const videoConstraints = data.videoConstraints || null;
+                        const isRenegotiate = data.renegotiate || false;
+                        
+                        if (videoConstraints) {
+                            log('📥 收到视频约束: ' + JSON.stringify(videoConstraints), 'success');
+                        }
+                        if (isRenegotiate) {
+                            log('🔄 这是重新协商请求', 'info');
+                        }
+                        
+                        await handleOffer(data.offer, videoConstraints, isRenegotiate);
                         break;
                     case 'ice-candidate':
                         // 只处理来自前端的ICE候选（前端发送的candidate不会有from字段）
@@ -522,9 +559,49 @@
         }
         
         // 处理Offer
-        async function handleOffer(offer) {
+        async function handleOffer(offer, videoConstraints = null, isRenegotiate = false) {
             log('处理Offer...');
+            
+            // 显示收到的视频约束
+            if (videoConstraints) {
+                log('=== 收到视频约束 ===', 'success');
+                log('期望宽度: ' + videoConstraints.width, 'success');
+                log('期望高度: ' + videoConstraints.height, 'success');
+                log('期望帧率: ' + videoConstraints.frameRate + ' fps', 'success');
+                console.log('完整视频约束:', videoConstraints);
+            } else {
+                log('⚠ 未收到视频约束参数', 'error');
+            }
+            
+            if (isRenegotiate) {
+                log('这是一个重新协商请求', 'info');
+            }
+            
             updateWebRTCStatus('建立连接中...', 'info');
+            
+            // 如果是重新协商且已有连接，直接处理
+            if (isRenegotiate && peerConnection) {
+                log('重新协商现有连接...');
+                
+                // 设置远程描述
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                
+                // 创建Answer
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                // 发送Answer
+                log('准备发送Answer到前端（重新协商）');
+                sendSignaling({
+                    type: 'answer',
+                    deviceName: deviceName,
+                    answer: answer,
+                    from: 'device'
+                });
+                
+                log('✓ 重新协商完成', 'success');
+                return;
+            }
             
             // 创建PeerConnection
             const configuration = {
@@ -550,6 +627,43 @@
             if (localStream) {
                 log('准备添加本地视频流...');
                 console.log('本地流轨道数:', localStream.getTracks().length);
+                
+                const videoTracks = localStream.getVideoTracks();
+                const audioTracks = localStream.getAudioTracks();
+                
+                log('=== 本地流信息 ===');
+                log('视频轨道: ' + videoTracks.length, videoTracks.length > 0 ? 'success' : 'error');
+                log('音频轨道: ' + audioTracks.length, audioTracks.length > 0 ? 'success' : 'error');
+                
+                // 显示视频轨道的实际参数
+                videoTracks.forEach(track => {
+                    const settings = track.getSettings();
+                    log('视频轨道设置:', 'info');
+                    log('  实际宽度: ' + settings.width, 'info');
+                    log('  实际高度: ' + settings.height, 'info');
+                    log('  实际帧率: ' + settings.frameRate + ' fps', 'info');
+                    console.log('视频轨道完整设置:', settings);
+                    
+                    // 如果收到了视频约束，尝试应用
+                    if (videoConstraints) {
+                        log('尝试应用视频约束...', 'info');
+                        track.applyConstraints({
+                            width: { ideal: videoConstraints.width },
+                            height: { ideal: videoConstraints.height },
+                            frameRate: { ideal: videoConstraints.frameRate }
+                        }).then(() => {
+                            const newSettings = track.getSettings();
+                            log('✓ 视频约束已应用', 'success');
+                            log('  新宽度: ' + newSettings.width, 'success');
+                            log('  新高度: ' + newSettings.height, 'success');
+                            log('  新帧率: ' + newSettings.frameRate + ' fps', 'success');
+                        }).catch(err => {
+                            log('✗ 应用视频约束失败: ' + err.message, 'error');
+                            log('  原因: 设备可能不支持请求的参数', 'error');
+                        });
+                    }
+                });
+                
                 localStream.getTracks().forEach(track => {
                     console.log('添加轨道:', track.kind, track.readyState, track.enabled);
                     const sender = peerConnection.addTrack(track, localStream);
@@ -585,6 +699,9 @@
                 if (state === 'connected') {
                     updateWebRTCStatus('已连接', 'success');
                     log('✓ WebRTC连接成功！', 'success');
+                    
+                    // 连接成功后，显示实际传输的视频参数
+                    displayActualVideoStats();
                 } else if (state === 'failed') {
                     updateWebRTCStatus('连接失败', 'error');
                     log('✗ WebRTC连接失败', 'error');
@@ -626,6 +743,32 @@
             });
             
             log('✓ 已发送Answer', 'success');
+        }
+        
+        // 显示实际视频统计信息
+        async function displayActualVideoStats() {
+            if (!peerConnection) return;
+            
+            try {
+                const stats = await peerConnection.getStats();
+                stats.forEach(report => {
+                    if (report.type === 'outbound-rtp' && report.kind === 'video') {
+                        log('=== 实际传输参数 ===', 'success');
+                        log('编码器: ' + (report.encoderImplementation || 'unknown'), 'info');
+                        log('发送帧数: ' + report.framesSent, 'info');
+                        log('发送字节: ' + Math.round(report.bytesSent / 1024) + ' KB', 'info');
+                        
+                        if (report.frameWidth && report.frameHeight) {
+                            log('传输分辨率: ' + report.frameWidth + 'x' + report.frameHeight, 'success');
+                        }
+                        if (report.framesPerSecond) {
+                            log('传输帧率: ' + report.framesPerSecond + ' fps', 'success');
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error('获取统计信息失败:', err);
+            }
         }
         
         // 处理ICE候选
