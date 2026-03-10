@@ -33,7 +33,7 @@
       <!-- 主内容区 - 视频和功能栏并排 -->
       <div class="main-content">
         <!-- 视频显示区 -->
-        <div class="video-container" @click="toggleFullscreen">
+        <div class="video-container">
           <video
             ref="remoteVideo"
             autoplay
