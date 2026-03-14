@@ -930,8 +930,8 @@ export default {
 </script>
 
 <style>
-/* 全局样式 - 点击穿透设置 */
-.el-dialog__wrapper {
+/* 投屏弹窗专用样式 - 点击穿透设置 */
+.el-dialog__wrapper:has(.screencast-control-dialog) {
   pointer-events: none !important;
 }
 
