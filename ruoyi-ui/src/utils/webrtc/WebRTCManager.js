@@ -185,18 +185,26 @@ export default class WebRTCManager {
           break;
         case 'connected':
           console.log('✓ ICE连接成功！');
+          // ICE连接成功，通常意味着WebRTC连接即将成功
           break;
         case 'completed':
           console.log('✓ ICE连接完成！');
           break;
         case 'failed':
           console.error('✗ ICE连接失败 - 可能是NAT/防火墙问题');
+          console.error('建议检查：1) 网络防火墙设置 2) STUN/TURN服务器配置 3) NAT类型');
           if (this.callbacks.onError) {
             this.callbacks.onError('ICE连接失败，请检查网络配置');
           }
           break;
         case 'disconnected':
           console.warn('⚠️ ICE连接已断开');
+          // ICE断开可能是临时的，等待一段时间看是否恢复
+          setTimeout(() => {
+            if (this.peerConnection && this.peerConnection.iceConnectionState === 'disconnected') {
+              console.warn('ICE连接持续断开，可能需要重新建立连接');
+            }
+          }, 5000);
           break;
         case 'closed':
           console.log('ICE连接已关闭');

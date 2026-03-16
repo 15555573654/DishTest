@@ -55,7 +55,18 @@ class MqttManager(private val context: Context) {
                 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
                     val msg = message?.toString() ?: return
-                    logCallback?.invoke("收到消息: $topic")
+                    logCallback?.invoke("📨 MQTT消息到达: topic=$topic, 长度=${msg.length}")
+                    
+                    // 添加消息内容的简要信息（避免日志过长）
+                    try {
+                        val jsonObject = com.google.gson.Gson().fromJson(msg, com.google.gson.JsonObject::class.java)
+                        val type = jsonObject.get("type")?.asString
+                        val deviceName = jsonObject.get("deviceName")?.asString
+                        logCallback?.invoke("📋 消息解析: type=$type, deviceName=$deviceName")
+                    } catch (e: Exception) {
+                        logCallback?.invoke("📋 消息解析失败: ${e.message}")
+                    }
+                    
                     messageCallback?.invoke(topic ?: "", msg)
                 }
                 
@@ -65,11 +76,17 @@ class MqttManager(private val context: Context) {
             
             mqttClient?.connect(options)
             
-            val topic = "webrtc/$username/$deviceName"
-            mqttClient?.subscribe(topic, 1)
+            // 订阅WebRTC信令主题
+            val webrtcTopic = "webrtc/$username/$deviceName"
+            mqttClient?.subscribe(webrtcTopic, 1)
+            
+            // 订阅控制主题
+            val controlTopic = "control/$username/$deviceName"
+            mqttClient?.subscribe(controlTopic, 1)
             
             logCallback?.invoke("MQTT连接成功")
-            logCallback?.invoke("已订阅主题: $topic")
+            logCallback?.invoke("已订阅主题: $webrtcTopic")
+            logCallback?.invoke("已订阅主题: $controlTopic")
             statusCallback?.invoke("已连接")
             callback(true)
             

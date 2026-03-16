@@ -145,10 +145,11 @@
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
-                <ScrollView
+                <androidx.core.widget.NestedScrollView
                     android:layout_width="match_parent"
                     android:layout_height="200dp"
-                    android:background="#1E1E1E">
+                    android:background="#1E1E1E"
+                    android:fillViewport="true">
 
                     <TextView
                         android:id="@+id/tvLog"
@@ -157,8 +158,9 @@
                         android:fontFamily="monospace"
                         android:padding="8dp"
                         android:textColor="#D4D4D4"
-                        android:textSize="12sp" />
-                </ScrollView>
+                        android:textSize="12sp"
+                        android:scrollbars="vertical" />
+                </androidx.core.widget.NestedScrollView>
 
                 <Button
                     android:id="@+id/btnClearLog"
