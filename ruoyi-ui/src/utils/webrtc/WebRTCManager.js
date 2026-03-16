@@ -526,18 +526,32 @@ export default class WebRTCManager {
       return;
     }
     
-    if (this.peerConnection.signalingState === 'stable') {
-      console.warn('⚠️ PeerConnection已处于stable状态，跳过重复的Answer');
-      return;
-    }
+    const currentState = this.peerConnection.signalingState;
+    console.log('>>> 处理Answer，当前信令状态:', currentState);
     
-    console.log('>>> 开始设置远程描述（Answer），当前状态:', this.peerConnection.signalingState);
+    if (currentState === 'stable') {
+      console.warn('⚠️ PeerConnection已处于stable状态，可能是重复的Answer或连接已建立');
+      // 不直接返回，而是检查连接状态
+      if (this.peerConnection.connectionState === 'connected') {
+        console.log('✓ 连接已建立，跳过Answer处理');
+        return;
+      } else {
+        console.warn('⚠️ 信令状态为stable但连接未建立，尝试处理Answer');
+      }
+    }
     
     try {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
       console.log('✓ 远程描述设置成功');
     } catch (error) {
       console.error('✗ 设置远程描述失败:', error);
+      
+      // 如果设置失败，可能需要重新建立连接
+      if (error.name === 'InvalidStateError') {
+        console.warn('⚠️ 状态错误，可能需要重新建立连接');
+        // 可以在这里触发重新连接逻辑
+      }
+      
       if (this.callbacks.onError) {
         this.callbacks.onError('设置远程描述失败: ' + error.message);
       }
@@ -747,6 +761,26 @@ export default class WebRTCManager {
       }
     } catch (err) {
       console.error('自适应质量调整失败:', err);
+    }
+  }
+  
+  /**
+   * 强制重置连接
+   */
+  forceReconnect() {
+    console.log('🔄 强制重置WebRTC连接...');
+    
+    // 清理现有连接
+    this.cleanup();
+    
+    // 重置状态
+    this.connectionState = 'disconnected';
+    
+    console.log('✓ 连接已重置，可以重新建立连接');
+    
+    // 触发状态变化回调
+    if (this.callbacks.onConnectionStateChange) {
+      this.callbacks.onConnectionStateChange(this.connectionState);
     }
   }
   

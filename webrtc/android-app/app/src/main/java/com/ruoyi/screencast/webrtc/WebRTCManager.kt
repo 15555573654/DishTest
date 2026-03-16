@@ -97,7 +97,7 @@ class WebRTCManager(private val context: Context) {
             
             val factory = createPeerConnectionFactory()
             
-            // 获取设备实际屏幕分辨率
+            // 获取设备实际屏幕分辨率 - 使用更准确的方法
             val displayMetrics = context.resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
             val screenHeight = displayMetrics.heightPixels
@@ -109,28 +109,20 @@ class WebRTCManager(private val context: Context) {
             logCallback?.invoke("  - 密度: ${density} (${densityDpi} dpi)")
             logCallback?.invoke("  - 物理尺寸: ${screenWidth/density}x${screenHeight/density} dp")
             
-            // 使用Intent创建ScreenCapturer（WebRTC库需要Intent，不是MediaProjection对象）
-            logCallback?.invoke("🎥 创建屏幕捕获器...")
-            videoCapturer = createScreenCapturer(data)
-            
-            logCallback?.invoke("📹 创建视频源...")
-            videoSource = factory.createVideoSource(false)
-            
-            logCallback?.invoke("🔗 初始化视频捕获器...")
-            videoCapturer?.initialize(SurfaceTextureHelper.create("CaptureThread", null), context, videoSource?.capturerObserver)
-            
             // 强制使用标清模式，避免自适应变化
             val targetWidth = 720
             val targetHeight = (screenHeight * 720.0 / screenWidth).toInt()
             
-            logCallback?.invoke("📱 设备屏幕信息:")
+            logCallback?.invoke("📱 视频传输信息:")
             logCallback?.invoke("  - 原始分辨率: ${screenWidth}x${screenHeight}")
             logCallback?.invoke("  - 传输分辨率: ${targetWidth}x${targetHeight} (标清模式)")
-            logCallback?.invoke("  - 密度: ${density} (${densityDpi} dpi)")
-            logCallback?.invoke("  - 物理尺寸: ${screenWidth/density}x${screenHeight/density} dp")
             
-            // 发送设备分辨率信息到Web端
+            // 关键修复：发送设备原始分辨率用于坐标转换
+            // Web端需要知道设备的真实分辨率来正确映射坐标
             sendDeviceResolution(screenWidth, screenHeight)
+            
+            // 同时发送视频传输分辨率用于参考
+            sendVideoResolution(targetWidth, targetHeight)
             
             // 使用Intent创建ScreenCapturer（WebRTC库需要Intent，不是MediaProjection对象）
             logCallback?.invoke("🎥 创建屏幕捕获器...")
@@ -355,32 +347,23 @@ class WebRTCManager(private val context: Context) {
         try {
             logCallback?.invoke("开始处理Offer")
             
-            // 如果已经有PeerConnection，检查状态决定是否需要重新创建
+            // 如果已经有PeerConnection，总是重新创建以确保连接的可靠性
             if (peerConnection != null) {
                 val signalingState = peerConnection?.signalingState()
                 val connectionState = peerConnection?.connectionState()
-                logCallback?.invoke("当前PeerConnection状态: 信令=$signalingState, 连接=$connectionState")
+                logCallback?.invoke("📊 当前PeerConnection状态: 信令=$signalingState, 连接=$connectionState")
+                logCallback?.invoke("🔄 为确保连接可靠性，重新创建PeerConnection")
                 
-                // 如果信令状态正常且连接状态也正常，跳过重复处理
-                if (signalingState == PeerConnection.SignalingState.STABLE && 
-                    (connectionState == PeerConnection.PeerConnectionState.CONNECTED || 
-                     connectionState == PeerConnection.PeerConnectionState.CONNECTING)) {
-                    logCallback?.invoke("⚠️ PeerConnection状态正常，跳过重复的Offer处理")
-                    return
+                try {
+                    peerConnection?.close()
+                    peerConnection?.dispose()
+                    peerConnection = null
+                    logCallback?.invoke("✓ 旧PeerConnection已清理")
+                } catch (e: Exception) {
+                    logCallback?.invoke("⚠️ 清理旧PeerConnection时出错: ${e.message}")
                 }
-                
-                // 如果连接失败或断开，清理并重新创建
-                if (connectionState == PeerConnection.PeerConnectionState.FAILED ||
-                    connectionState == PeerConnection.PeerConnectionState.DISCONNECTED ||
-                    connectionState == PeerConnection.PeerConnectionState.CLOSED) {
-                    logCallback?.invoke("🔄 连接状态异常($connectionState)，重新建立连接")
-                } else {
-                    logCallback?.invoke("🔄 信令状态异常($signalingState)，重新建立连接")
-                }
-                
-                peerConnection?.close()
-                peerConnection?.dispose()
-                peerConnection = null
+            } else {
+                logCallback?.invoke("🆕 首次创建PeerConnection")
             }
             
             val factory = createPeerConnectionFactory()
@@ -799,6 +782,21 @@ class WebRTCManager(private val context: Context) {
         logCallback?.invoke("✓ 已发送设备分辨率信息: ${width}x${height}")
     }
     
+    /** 发送视频传输分辨率信息到Web端 */
+    private fun sendVideoResolution(width: Int, height: Int) {
+        val resolutionMessage = mapOf(
+            "type" to "video-resolution",
+            "deviceName" to deviceName,
+            "width" to width,
+            "height" to height,
+            "timestamp" to System.currentTimeMillis(),
+            "from" to "device"
+        )
+        val topic = "control/$username/$deviceName/feedback"
+        mqttManager?.publish(topic, gson.toJson(resolutionMessage))
+        logCallback?.invoke("✓ 已发送视频传输分辨率信息: ${width}x${height}")
+    }
+    
     private fun performVirtualKey(key: String) {
         when (key) {
             "back" -> performBack()
@@ -822,7 +820,7 @@ class WebRTCManager(private val context: Context) {
             return
         }
         
-        // 获取当前屏幕分辨率用于验证
+        // 获取当前屏幕分辨率用于坐标转换
         val displayMetrics = context.resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
@@ -830,7 +828,9 @@ class WebRTCManager(private val context: Context) {
         logCallback?.invoke("👆 执行点击操作:")
         logCallback?.invoke("  - 接收坐标: ($x, $y)")
         logCallback?.invoke("  - 屏幕分辨率: ${screenWidth}x${screenHeight}")
-        logCallback?.invoke("  - 坐标范围检查: x∈[0,${screenWidth-1}], y∈[0,${screenHeight-1}]")
+        
+        // 关键修复：Web端发送的坐标是基于设备原始分辨率的，直接使用即可
+        // 不需要进行缩放转换，因为Web端已经使用了正确的设备分辨率进行计算
         
         // 边界检查
         val clampedX = x.coerceIn(0f, (screenWidth - 1).toFloat())
@@ -840,6 +840,7 @@ class WebRTCManager(private val context: Context) {
             logCallback?.invoke("  - ⚠️ 坐标超出范围，已调整为: ($clampedX, $clampedY)")
         }
         
+        logCallback?.invoke("  - 最终执行坐标: ($clampedX, $clampedY)")
         AccessibilityHelper.performClick(clampedX, clampedY)
         
         // 发送确认消息回Web端

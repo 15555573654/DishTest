@@ -75,6 +75,9 @@
           <div class="toolbar-item" @click.stop="handleRefresh" :class="{ disabled: !mqttClient }" title="刷新">
             <i class="el-icon-refresh"></i>
           </div>
+          <div class="toolbar-item" @click.stop="forceReconnect" :class="{ disabled: !webrtcManager }" title="重新连接">
+            <i class="el-icon-connection"></i>
+          </div>
 
           <!-- 分隔线 -->
           <div class="toolbar-divider"></div>
@@ -248,6 +251,9 @@ export default {
       
       // 设备真实分辨率（从Android端获取）
       deviceResolution: null,
+      
+      // 视频传输分辨率（从Android端获取）
+      videoResolution: null,
       
       // 消息去重
       processedMessages: null,
@@ -577,6 +583,15 @@ export default {
               }
             });
           }
+          break;
+        case 'video-resolution':
+          console.log(`✓ 收到视频传输分辨率: ${data.width}x${data.height}`);
+          // 保存视频传输分辨率用于参考
+          this.videoResolution = {
+            width: data.width,
+            height: data.height
+          };
+          console.log('视频传输分辨率已更新');
           break;
         default:
           console.log('未知反馈类型:', data.type);
@@ -973,6 +988,38 @@ export default {
         
       } catch (err) {
         console.warn('视频恢复尝试失败:', err);
+      }
+    },
+
+    /** 强制重新连接 */
+    forceReconnect() {
+      console.log('🔄 强制重新连接WebRTC...');
+      
+      if (this.webrtcManager) {
+        // 使用WebRTC管理器的强制重连方法
+        this.webrtcManager.forceReconnect();
+        
+        // 重置本地状态
+        this.connectionStatus = 'disconnected';
+        this.isStreaming = false;
+        this.statusText = '准备重新连接...';
+        
+        // 清除视频
+        if (this.$refs.remoteVideo) {
+          const video = this.$refs.remoteVideo;
+          video.pause();
+          video.srcObject = null;
+          video.src = '';
+          video.load();
+        }
+        
+        // 延迟一秒后重新开始连接
+        setTimeout(() => {
+          console.log('🔄 开始重新建立连接...');
+          this.startScreencast();
+        }, 1000);
+        
+        this.$message.info('正在重新建立连接...');
       }
     },
 
@@ -1890,12 +1937,14 @@ export default {
       const videoDisplayWidth = rect.width;
       const videoDisplayHeight = rect.height;
 
-      // 简化的调试输出
       if (this.debugMode) {
         console.log(`=== 坐标转换调试 ===`);
         console.log(`点击位置: (${clickX.toFixed(1)}, ${clickY.toFixed(1)})`);
         console.log(`视频显示区域: ${videoDisplayWidth}x${videoDisplayHeight}`);
         console.log(`设备分辨率: ${deviceWidth}x${deviceHeight}`);
+        if (this.videoResolution) {
+          console.log(`视频传输分辨率: ${this.videoResolution.width}x${this.videoResolution.height}`);
+        }
       }
 
       // 关键修复：直接使用设备分辨率计算宽高比，不依赖视频流尺寸
