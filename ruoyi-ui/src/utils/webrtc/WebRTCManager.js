@@ -145,10 +145,33 @@ export default class WebRTCManager {
         this.callbacks.onConnectionStateChange(this.connectionState);
       }
       
-      if (this.connectionState === 'connected') {
-        console.log('✓ WebRTC连接成功！');
-      } else if (this.connectionState === 'failed' || this.connectionState === 'disconnected') {
-        console.error('✗ WebRTC连接失败或断开');
+      switch (this.connectionState) {
+        case 'connecting':
+          console.log('🔄 WebRTC正在连接...');
+          break;
+        case 'connected':
+          console.log('✓ WebRTC连接成功！');
+          break;
+        case 'disconnected':
+          console.warn('⚠️ WebRTC连接已断开');
+          // 不立即报错，可能是临时断开
+          setTimeout(() => {
+            if (this.connectionState === 'disconnected') {
+              console.error('✗ WebRTC连接持续断开状态');
+            }
+          }, 5000);
+          break;
+        case 'failed':
+          console.error('✗ WebRTC连接失败');
+          if (this.callbacks.onError) {
+            this.callbacks.onError('WebRTC连接失败');
+          }
+          break;
+        case 'closed':
+          console.log('WebRTC连接已关闭');
+          break;
+        default:
+          console.log('WebRTC状态:', this.connectionState);
       }
     };
     
@@ -156,14 +179,30 @@ export default class WebRTCManager {
     this.peerConnection.oniceconnectionstatechange = () => {
       console.log('>>> ICE连接状态变化:', this.peerConnection.iceConnectionState);
       
-      if (this.peerConnection.iceConnectionState === 'connected' || 
-          this.peerConnection.iceConnectionState === 'completed') {
-        console.log('✓ ICE连接成功！');
-      } else if (this.peerConnection.iceConnectionState === 'failed') {
-        console.error('✗ ICE连接失败 - 可能是NAT/防火墙问题');
-        if (this.callbacks.onError) {
-          this.callbacks.onError('ICE连接失败，请检查网络配置');
-        }
+      switch (this.peerConnection.iceConnectionState) {
+        case 'checking':
+          console.log('🔍 ICE正在检查连接...');
+          break;
+        case 'connected':
+          console.log('✓ ICE连接成功！');
+          break;
+        case 'completed':
+          console.log('✓ ICE连接完成！');
+          break;
+        case 'failed':
+          console.error('✗ ICE连接失败 - 可能是NAT/防火墙问题');
+          if (this.callbacks.onError) {
+            this.callbacks.onError('ICE连接失败，请检查网络配置');
+          }
+          break;
+        case 'disconnected':
+          console.warn('⚠️ ICE连接已断开');
+          break;
+        case 'closed':
+          console.log('ICE连接已关闭');
+          break;
+        default:
+          console.log('ICE状态:', this.peerConnection.iceConnectionState);
       }
     };
     
@@ -462,9 +501,28 @@ export default class WebRTCManager {
    * 处理 Answer
    */
   async handleAnswer(answer) {
-    console.log('>>> 开始设置远程描述（Answer）');
-    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    console.log('✓ 远程描述设置成功');
+    // 检查PeerConnection状态，避免重复设置
+    if (!this.peerConnection) {
+      console.error('PeerConnection不存在，无法处理Answer');
+      return;
+    }
+    
+    if (this.peerConnection.signalingState === 'stable') {
+      console.warn('⚠️ PeerConnection已处于stable状态，跳过重复的Answer');
+      return;
+    }
+    
+    console.log('>>> 开始设置远程描述（Answer），当前状态:', this.peerConnection.signalingState);
+    
+    try {
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      console.log('✓ 远程描述设置成功');
+    } catch (error) {
+      console.error('✗ 设置远程描述失败:', error);
+      if (this.callbacks.onError) {
+        this.callbacks.onError('设置远程描述失败: ' + error.message);
+      }
+    }
   }
   
   /**

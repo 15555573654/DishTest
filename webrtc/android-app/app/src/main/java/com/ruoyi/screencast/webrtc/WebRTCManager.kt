@@ -66,6 +66,21 @@ class WebRTCManager(private val context: Context) {
     
     fun startCapture(resultCode: Int, data: Intent) {
         try {
+            // 检查前台服务是否运行
+            val service = com.ruoyi.screencast.service.ScreenCaptureService.instance
+            if (service == null) {
+                throw RuntimeException("ScreenCaptureService not running - MediaProjection requires foreground service")
+            }
+            
+            // 停止现有捕获，避免重复启动
+            if (videoCapturer != null || localVideoTrack != null) {
+                logCallback?.invoke("⚠️ 屏幕捕获已在运行，先停止现有捕获")
+                stopCapture()
+            }
+            
+            logCallback?.invoke("🎬 开始初始化屏幕捕获...")
+            logCallback?.invoke("✅ 前台服务已运行，可以创建MediaProjection")
+            
             val factory = createPeerConnectionFactory()
             
             // 获取设备实际屏幕分辨率
@@ -73,34 +88,84 @@ class WebRTCManager(private val context: Context) {
             val screenWidth = displayMetrics.widthPixels
             val screenHeight = displayMetrics.heightPixels
             
-            logCallback?.invoke("设备分辨率: ${screenWidth}x${screenHeight}")
+            logCallback?.invoke("📱 设备分辨率: ${screenWidth}x${screenHeight}")
             
-            // 使用Intent创建ScreenCapturer
+            // 使用Intent创建ScreenCapturer（WebRTC库需要Intent，不是MediaProjection对象）
+            logCallback?.invoke("🎥 创建屏幕捕获器...")
             videoCapturer = createScreenCapturer(data)
+            
+            logCallback?.invoke("📹 创建视频源...")
             videoSource = factory.createVideoSource(false)
+            
+            logCallback?.invoke("🔗 初始化视频捕获器...")
             videoCapturer?.initialize(SurfaceTextureHelper.create("CaptureThread", null), context, videoSource?.capturerObserver)
             
             // 使用设备实际分辨率，帧率设置为30fps（平衡性能和流畅度）
+            logCallback?.invoke("▶️ 启动视频捕获: ${screenWidth}x${screenHeight}@30fps")
             videoCapturer?.startCapture(screenWidth, screenHeight, 30)
             
+            logCallback?.invoke("🎞️ 创建视频轨道...")
             localVideoTrack = factory.createVideoTrack("video", videoSource)
             
+            logCallback?.invoke("🎵 创建音频源和轨道...")
             audioSource = factory.createAudioSource(MediaConstraints())
             localAudioTrack = factory.createAudioTrack("audio", audioSource)
             
-            logCallback?.invoke("视频捕获已启动: ${screenWidth}x${screenHeight}@30fps")
+            // 验证轨道创建成功
+            if (localVideoTrack != null) {
+                logCallback?.invoke("✅ 视频轨道创建成功")
+            } else {
+                logCallback?.invoke("❌ 视频轨道创建失败")
+            }
+            
+            if (localAudioTrack != null) {
+                logCallback?.invoke("✅ 音频轨道创建成功")
+            } else {
+                logCallback?.invoke("❌ 音频轨道创建失败")
+            }
+            
+            logCallback?.invoke("✅ 视频捕获已启动: ${screenWidth}x${screenHeight}@30fps")
             statusCallback?.invoke("捕获中")
             
             // 如果有待处理的 offer，现在处理它
             pendingOffer?.let { offer ->
-                logCallback?.invoke("处理待处理的 offer")
+                logCallback?.invoke("📥 处理待处理的 offer，开始建立WebRTC连接")
                 handleOffer(offer)
                 pendingOffer = null
+                logCallback?.invoke("✓ 待处理的 offer 已处理完成")
+            } ?: run {
+                logCallback?.invoke("ℹ️ 没有待处理的 offer，等待Web端发起连接")
             }
             
         } catch (e: Exception) {
-            logCallback?.invoke("启动捕获失败: ${e.message}")
+            logCallback?.invoke("❌ 启动捕获失败: ${e.message}")
             e.printStackTrace()
+        }
+    }
+    
+    private fun stopCapture() {
+        try {
+            logCallback?.invoke("🛑 停止现有屏幕捕获...")
+            
+            videoCapturer?.stopCapture()
+            videoCapturer?.dispose()
+            videoCapturer = null
+            
+            localVideoTrack?.dispose()
+            localVideoTrack = null
+            
+            localAudioTrack?.dispose()
+            localAudioTrack = null
+            
+            videoSource?.dispose()
+            videoSource = null
+            
+            audioSource?.dispose()
+            audioSource = null
+            
+            logCallback?.invoke("✓ 屏幕捕获资源已清理")
+        } catch (e: Exception) {
+            logCallback?.invoke("⚠️ 清理捕获资源时出错: ${e.message}")
         }
     }
     
@@ -112,6 +177,9 @@ class WebRTCManager(private val context: Context) {
     }
     
     private fun createScreenCapturer(mediaProjectionPermissionResultData: Intent): VideoCapturer {
+        // 确保在前台服务上下文中创建ScreenCapturer
+        logCallback?.invoke("🎥 在前台服务上下文中创建ScreenCapturer")
+        
         return ScreenCapturerAndroid(
             mediaProjectionPermissionResultData,
             object : MediaProjection.Callback() {
@@ -174,6 +242,35 @@ class WebRTCManager(private val context: Context) {
     private fun handleOffer(offer: SessionDescription) {
         try {
             logCallback?.invoke("开始处理Offer")
+            
+            // 如果已经有PeerConnection，检查状态决定是否需要重新创建
+            if (peerConnection != null) {
+                val signalingState = peerConnection?.signalingState()
+                val connectionState = peerConnection?.connectionState()
+                logCallback?.invoke("当前PeerConnection状态: 信令=$signalingState, 连接=$connectionState")
+                
+                // 如果信令状态正常且连接状态也正常，跳过重复处理
+                if (signalingState == PeerConnection.SignalingState.STABLE && 
+                    (connectionState == PeerConnection.PeerConnectionState.CONNECTED || 
+                     connectionState == PeerConnection.PeerConnectionState.CONNECTING)) {
+                    logCallback?.invoke("⚠️ PeerConnection状态正常，跳过重复的Offer处理")
+                    return
+                }
+                
+                // 如果连接失败或断开，清理并重新创建
+                if (connectionState == PeerConnection.PeerConnectionState.FAILED ||
+                    connectionState == PeerConnection.PeerConnectionState.DISCONNECTED ||
+                    connectionState == PeerConnection.PeerConnectionState.CLOSED) {
+                    logCallback?.invoke("🔄 连接状态异常($connectionState)，重新建立连接")
+                } else {
+                    logCallback?.invoke("🔄 信令状态异常($signalingState)，重新建立连接")
+                }
+                
+                peerConnection?.close()
+                peerConnection?.dispose()
+                peerConnection = null
+            }
+            
             val factory = createPeerConnectionFactory()
             
             val iceServers = listOf(
@@ -202,17 +299,56 @@ class WebRTCManager(private val context: Context) {
                 override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
                 
                 override fun onConnectionChange(newState: PeerConnection.PeerConnectionState?) {
-                    logCallback?.invoke("连接状态: $newState")
+                    logCallback?.invoke("PeerConnection状态变化: $newState")
                     when (newState) {
-                        PeerConnection.PeerConnectionState.CONNECTED -> statusCallback?.invoke("已连接")
-                        PeerConnection.PeerConnectionState.FAILED -> statusCallback?.invoke("连接失败")
-                        PeerConnection.PeerConnectionState.DISCONNECTED -> statusCallback?.invoke("已断开")
-                        else -> {}
+                        PeerConnection.PeerConnectionState.CONNECTING -> {
+                            statusCallback?.invoke("正在连接")
+                            logCallback?.invoke("WebRTC正在建立连接...")
+                        }
+                        PeerConnection.PeerConnectionState.CONNECTED -> {
+                            statusCallback?.invoke("已连接")
+                            logCallback?.invoke("✓ WebRTC连接成功！")
+                        }
+                        PeerConnection.PeerConnectionState.FAILED -> {
+                            statusCallback?.invoke("连接失败")
+                            logCallback?.invoke("✗ WebRTC连接失败")
+                        }
+                        PeerConnection.PeerConnectionState.DISCONNECTED -> {
+                            statusCallback?.invoke("已断开")
+                            logCallback?.invoke("⚠️ WebRTC连接已断开")
+                        }
+                        PeerConnection.PeerConnectionState.CLOSED -> {
+                            statusCallback?.invoke("已关闭")
+                            logCallback?.invoke("WebRTC连接已关闭")
+                        }
+                        else -> {
+                            logCallback?.invoke("WebRTC状态: $newState")
+                        }
                     }
                 }
                 
-                override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
-                override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {}
+                override fun onSignalingChange(state: PeerConnection.SignalingState?) {
+                    logCallback?.invoke("信令状态变化: $state")
+                }
+                
+                override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
+                    logCallback?.invoke("ICE连接状态变化: $state")
+                    when (state) {
+                        PeerConnection.IceConnectionState.CONNECTED -> {
+                            logCallback?.invoke("✓ ICE连接已建立")
+                        }
+                        PeerConnection.IceConnectionState.COMPLETED -> {
+                            logCallback?.invoke("✓ ICE连接已完成")
+                        }
+                        PeerConnection.IceConnectionState.FAILED -> {
+                            logCallback?.invoke("✗ ICE连接失败")
+                        }
+                        PeerConnection.IceConnectionState.DISCONNECTED -> {
+                            logCallback?.invoke("⚠️ ICE连接已断开")
+                        }
+                        else -> {}
+                    }
+                }
                 override fun onIceConnectionReceivingChange(receiving: Boolean) {}
                 override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
                 override fun onAddStream(stream: MediaStream?) {}
@@ -234,6 +370,14 @@ class WebRTCManager(private val context: Context) {
                 screenCaptureRequestCallback?.invoke()
                 return
             }
+            
+            // 确保视频轨道存在才继续
+            if (localVideoTrack == null) {
+                logCallback?.invoke("✗ 视频轨道不存在，无法建立连接")
+                return
+            }
+            
+            logCallback?.invoke("✓ 屏幕捕获已启动，开始建立WebRTC连接")
             
             localVideoTrack?.let { 
                 peerConnection?.addTrack(it, listOf("stream"))
@@ -260,6 +404,7 @@ class WebRTCManager(private val context: Context) {
                         val optimizedAnswer = SessionDescription(it.type, optimizedSdp)
                         peerConnection?.setLocalDescription(SimpleSdpObserver(), optimizedAnswer)
                         sendAnswer(optimizedAnswer)
+                        logCallback?.invoke("✓ Answer已创建并发送")
                     }
                 }
                 
@@ -449,6 +594,24 @@ class WebRTCManager(private val context: Context) {
     
     private fun performHome() {
         AccessibilityHelper.performHome()
+    }
+    
+    fun resetConnection() {
+        try {
+            logCallback?.invoke("🔄 重置WebRTC连接...")
+            
+            // 清理现有连接
+            peerConnection?.close()
+            peerConnection?.dispose()
+            peerConnection = null
+            
+            // 清理待处理的offer
+            pendingOffer = null
+            
+            logCallback?.invoke("✓ WebRTC连接已重置，可以重新建立连接")
+        } catch (e: Exception) {
+            logCallback?.invoke("重置连接时出错: ${e.message}")
+        }
     }
     
     fun release() {

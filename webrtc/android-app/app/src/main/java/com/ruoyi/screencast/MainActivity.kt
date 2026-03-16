@@ -67,6 +67,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
+        // 添加重置连接按钮的长按事件
+        binding.btnStartScreen.setOnLongClickListener {
+            if (pendingScreenCaptureData != null) {
+                log("🔄 重置WebRTC连接...")
+                webrtcManager.resetConnection()
+                Toast.makeText(this, "连接已重置，可以重新开始投屏", Toast.LENGTH_SHORT).show()
+                true
+            } else {
+                false
+            }
+        }
+        
         binding.btnEnableAccessibility.setOnClickListener {
             openAccessibilitySettings()
         }
@@ -100,11 +112,13 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 if (pendingScreenCaptureData != null) {
                     // 已有权限，直接启动
-                    startScreenCaptureWithPermission()
                     log("收到远程投屏请求，自动启动屏幕捕获")
+                    startScreenCaptureWithPermission()
                 } else {
-                    // 没有权限，提示用户
-                    Toast.makeText(this, "请先授权屏幕录制权限", Toast.LENGTH_SHORT).show()
+                    // 没有权限，请求权限并在获得权限后自动启动
+                    log("收到远程投屏请求，但尚未授权，正在请求权限...")
+                    shouldAutoStartCapture = true // 标记需要自动启动
+                    Toast.makeText(this, "正在请求屏幕录制权限以开始投屏", Toast.LENGTH_SHORT).show()
                     requestScreenCapture()
                 }
             }
@@ -157,6 +171,7 @@ class MainActivity : AppCompatActivity() {
     private fun disconnectMqtt() {
         mqttManager.disconnect()
         webrtcManager.release()
+        stopScreenCaptureService()
         binding.btnConnect.isEnabled = true
         binding.btnDisconnect.isEnabled = false
         binding.btnStartScreen.isEnabled = false
@@ -180,21 +195,58 @@ class MainActivity : AppCompatActivity() {
     private fun startScreenCaptureWithPermission() {
         if (pendingScreenCaptureData == null) {
             Toast.makeText(this, "请先授权屏幕录制权限", Toast.LENGTH_SHORT).show()
+            log("✗ 无法启动屏幕捕获：缺少权限数据")
             return
         }
+        
+        log("🚀 开始启动屏幕捕获服务...")
+        
+        // 先停止现有服务，避免冲突
+        stopScreenCaptureService()
         
         val serviceIntent = Intent(this, ScreenCaptureService::class.java)
         serviceIntent.putExtra("resultCode", pendingScreenCaptureResultCode)
         serviceIntent.putExtra("data", pendingScreenCaptureData)
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            // Android 14+ 需要特殊处理前台服务启动
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Android 14+ 使用 startForegroundService 并确保服务立即调用 startForeground
+                startForegroundService(serviceIntent)
+                log("✓ Android 14+ 前台服务已启动")
+            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+                log("✓ 前台服务已启动")
+            } else {
+                startService(serviceIntent)
+                log("✓ 服务已启动")
+            }
+            
+            // 等待服务启动完成后再启动WebRTC捕获
+            binding.root.postDelayed({
+                try {
+                    webrtcManager.startCapture(pendingScreenCaptureResultCode, pendingScreenCaptureData!!)
+                    log("✓ WebRTC屏幕捕获已启动")
+                } catch (e: Exception) {
+                    log("✗ WebRTC屏幕捕获启动失败: ${e.message}")
+                    Toast.makeText(this, "WebRTC启动失败: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }, 1500) // 延迟1.5秒确保服务完全启动
+            
+        } catch (e: Exception) {
+            log("✗ 启动屏幕捕获失败: ${e.message}")
+            Toast.makeText(this, "启动屏幕捕获失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
-        
-        webrtcManager.startCapture(pendingScreenCaptureResultCode, pendingScreenCaptureData!!)
-        log("屏幕捕获已启动")
+    }
+    
+    private fun stopScreenCaptureService() {
+        try {
+            val serviceIntent = Intent(this, ScreenCaptureService::class.java)
+            stopService(serviceIntent)
+            log("已停止现有屏幕捕获服务")
+        } catch (e: Exception) {
+            log("停止服务时出错: ${e.message}")
+        }
     }
     
     private fun openAccessibilitySettings() {
@@ -207,11 +259,20 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         
         if (requestCode == SCREEN_CAPTURE_REQUEST && resultCode == RESULT_OK && data != null) {
-            // 保存屏幕捕获权限，但不立即启动
+            // 保存屏幕捕获权限
             pendingScreenCaptureData = data
             pendingScreenCaptureResultCode = resultCode
-            log("✓ 屏幕录制权限已授权，等待远程投屏请求")
-            Toast.makeText(this, "权限已授权，可以开始使用", Toast.LENGTH_SHORT).show()
+            log("✓ 屏幕录制权限已授权")
+            
+            // 如果是由远程投屏请求触发的，自动启动
+            if (shouldAutoStartCapture) {
+                shouldAutoStartCapture = false
+                log("自动启动屏幕捕获（远程请求触发）")
+                startScreenCaptureWithPermission()
+                Toast.makeText(this, "权限已授权，正在启动投屏", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "权限已授权，可以开始使用", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
@@ -232,5 +293,6 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         mqttManager.disconnect()
         webrtcManager.release()
+        stopScreenCaptureService()
     }
 }

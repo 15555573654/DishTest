@@ -200,7 +200,8 @@ export default {
       currentQuality: 'high',
       videoFitMode: 'contain', // 视频填充模式：contain(完整显示，不裁剪)
 
-      isMobile: false
+      isMobile: false,
+      debugStatsLogged: false // 调试标志，避免重复输出统计类型
     };
   },
   watch: {
@@ -235,12 +236,30 @@ export default {
       this.webrtcManager.on('connectionStateChange', (state) => {
         this.connectionStatus = state;
 
-        if (state === 'connected') {
-          this.statusText = '连接成功';
-          this.$message.success('连接成功');
-        } else if (state === 'failed' || state === 'disconnected') {
-          this.isStreaming = false;
-          this.statusText = '连接断开';
+        switch (state) {
+          case 'connecting':
+            this.statusText = '正在连接...';
+            break;
+          case 'connected':
+            this.statusText = '连接成功';
+            this.$message.success('WebRTC连接成功');
+            break;
+          case 'disconnected':
+            this.isStreaming = false;
+            this.statusText = '连接断开';
+            console.warn('WebRTC连接断开，可能是临时网络问题');
+            break;
+          case 'failed':
+            this.isStreaming = false;
+            this.statusText = '连接失败';
+            this.$message.error('WebRTC连接失败');
+            break;
+          case 'closed':
+            this.isStreaming = false;
+            this.statusText = '连接已关闭';
+            break;
+          default:
+            this.statusText = `状态: ${state}`;
         }
       });
 
@@ -492,6 +511,16 @@ export default {
         try {
           const stats = await this.webrtcManager.peerConnection.getStats();
 
+          // 调试：输出所有报告类型（仅前几次）
+          if (!this.debugStatsLogged) {
+            const reportTypes = new Set();
+            stats.forEach(report => {
+              reportTypes.add(report.type);
+            });
+            console.log('可用的统计报告类型:', Array.from(reportTypes));
+            this.debugStatsLogged = true;
+          }
+
           stats.forEach(report => {
             // 视频统计
             if (report.type === 'inbound-rtp' && report.kind === 'video') {
@@ -554,29 +583,50 @@ export default {
               }
             }
 
-            // RTT (往返时间) - 修复延迟统计
+            // RTT (往返时间) - 改进延迟统计
+            let rttFound = false;
+            
+            // 优先从 remote-inbound-rtp 获取 RTT
             if (report.type === 'remote-inbound-rtp' && report.kind === 'video') {
-              // 使用 remote-inbound-rtp 的 roundTripTime
-              if (report.roundTripTime !== undefined) {
+              if (report.roundTripTime !== undefined && report.roundTripTime > 0) {
                 this.currentStats.rtt = Math.round(report.roundTripTime * 1000); // 转换为毫秒
+                rttFound = true;
+                console.log('从 remote-inbound-rtp 获取 RTT:', this.currentStats.rtt, 'ms');
               }
             }
 
             // 备用方案：从 candidate-pair 获取 RTT
-            if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.nominated) {
+            if (!rttFound && report.type === 'candidate-pair' && report.state === 'succeeded') {
               if (report.currentRoundTripTime !== undefined && report.currentRoundTripTime > 0) {
-                // 只有在没有从 remote-inbound-rtp 获取到时才使用
-                if (this.currentStats.rtt === 0 || this.currentStats.rtt === 1) {
-                  this.currentStats.rtt = Math.round(report.currentRoundTripTime * 1000);
+                const newRtt = Math.round(report.currentRoundTripTime * 1000);
+                // 只有当RTT变化超过5ms时才更新，避免频繁小幅波动
+                if (Math.abs(newRtt - this.currentStats.rtt) > 5 || this.currentStats.rtt === 0) {
+                  this.currentStats.rtt = newRtt;
+                  console.log('从 candidate-pair 更新 RTT:', this.currentStats.rtt, 'ms');
                 }
+                rttFound = true;
               }
             }
 
-            // 另一个备用方案：从 transport 获取
-            if (report.type === 'transport') {
-              if (report.selectedCandidatePairId) {
-                // 可以通过 selectedCandidatePairId 查找对应的 candidate-pair
+            // 第三备用方案：从 inbound-rtp 的其他字段计算
+            if (!rttFound && report.type === 'inbound-rtp' && report.kind === 'video') {
+              // 有些浏览器可能在这里提供 RTT 信息
+              if (report.roundTripTime !== undefined && report.roundTripTime > 0) {
+                this.currentStats.rtt = Math.round(report.roundTripTime * 1000);
+                rttFound = true;
+                console.log('从 inbound-rtp 获取 RTT:', this.currentStats.rtt, 'ms');
               }
+            }
+
+            // 调试：输出candidate-pair的详细信息
+            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+              console.log('candidate-pair详情:', {
+                id: report.id,
+                state: report.state,
+                nominated: report.nominated,
+                currentRoundTripTime: report.currentRoundTripTime,
+                availableOutgoingBitrate: report.availableOutgoingBitrate
+              });
             }
           });
 
