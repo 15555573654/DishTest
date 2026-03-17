@@ -1255,16 +1255,25 @@ export default {
     startDrag(e) {
       if (this.isMobile) return;
 
-      this.isDragging = true;
-      this.dragStartX = e.clientX;
-      this.dragStartY = e.clientY;
-
       const dialog = document.querySelector('.screencast-control-dialog');
       if (dialog) {
         const rect = dialog.getBoundingClientRect();
-        this.dialogLeft = rect.left;
-        this.dialogTop = rect.top;
+        
+        // 如果弹窗还没有设置绝对定位，先固定在当前位置
+        if (!dialog.style.left || dialog.style.left === '') {
+          dialog.style.left = rect.left + 'px';
+          dialog.style.top = rect.top + 'px';
+          dialog.style.margin = '0';
+        }
+        
+        // 记录当前位置作为拖动起点
+        this.dialogLeft = parseFloat(dialog.style.left) || rect.left;
+        this.dialogTop = parseFloat(dialog.style.top) || rect.top;
       }
+
+      this.isDragging = true;
+      this.dragStartX = e.clientX;
+      this.dragStartY = e.clientY;
 
       e.preventDefault();
     },
