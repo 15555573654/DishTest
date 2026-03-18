@@ -3,10 +3,15 @@ package com.ruoyi.screencast.webrtc
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.view.Surface
+import android.view.WindowManager
 import com.google.gson.Gson
 import com.ruoyi.screencast.mqtt.MqttManager
+import com.ruoyi.screencast.service.ScreenCaptureService
 import org.webrtc.*
+import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 class WebRTCManager(private val context: Context) {
     
@@ -26,11 +31,14 @@ class WebRTCManager(private val context: Context) {
     private var screenCaptureRequestCallback: (() -> Unit)? = null
     
     private var pendingOffer: SessionDescription? = null
-    
-    
-    // 保存屏幕捕获的Intent，用于重新创建ScreenCapturer
     private var screenCaptureIntent: Intent? = null
-    
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var peerConnectionFactory: PeerConnectionFactory? = null
+    private var requestedCaptureConfig = CaptureConfig()
+    private var activeCaptureConfig = CaptureConfig()
+    private var localIceCandidateStats = mutableMapOf<String, Int>()
+    private var remoteIceCandidateStats = mutableMapOf<String, Int>()
+
     private val gson = Gson()
     
     init {
@@ -39,7 +47,6 @@ class WebRTCManager(private val context: Context) {
     
     private fun initializeWebRTC() {
         val options = PeerConnectionFactory.InitializationOptions.builder(context)
-            .setEnableInternalTracer(true)
             .createInitializationOptions()
         PeerConnectionFactory.initialize(options)
     }
@@ -74,91 +81,49 @@ class WebRTCManager(private val context: Context) {
     
     fun startCapture(resultCode: Int, data: Intent) {
         try {
-            // 保存Intent用于后续重新创建ScreenCapturer
             screenCaptureIntent = data
-            
-            // 检查前台服务是否运行
             val service = com.ruoyi.screencast.service.ScreenCaptureService.instance
             if (service == null) {
                 throw RuntimeException("ScreenCaptureService not running - MediaProjection requires foreground service")
             }
-            
-            // 停止现有捕获，避免重复启动
+
             if (videoCapturer != null || localVideoTrack != null) {
                 logCallback?.invoke("⚠️ 屏幕捕获已在运行，先停止现有捕获")
                 stopCapture()
             }
-            
+
             logCallback?.invoke("🎬 开始初始化屏幕捕获...")
-            logCallback?.invoke("✅ 前台服务已运行，可以创建MediaProjection")
-            
             val factory = createPeerConnectionFactory()
-            
-            // 获取设备实际屏幕分辨率 - 使用更准确的方法
-            val displayMetrics = context.resources.displayMetrics
-            val screenWidth = displayMetrics.widthPixels
-            val screenHeight = displayMetrics.heightPixels
-            val density = displayMetrics.density
-            val densityDpi = displayMetrics.densityDpi
-            
-            logCallback?.invoke("📱 设备屏幕信息:")
-            logCallback?.invoke("  - 分辨率: ${screenWidth}x${screenHeight}")
-            logCallback?.invoke("  - 密度: ${density} (${densityDpi} dpi)")
-            logCallback?.invoke("  - 物理尺寸: ${screenWidth/density}x${screenHeight/density} dp")
-            
-            // 强制使用标清模式，避免自适应变化
-            val targetWidth = 720
-            val targetHeight = (screenHeight * 720.0 / screenWidth).toInt()
-            
-            logCallback?.invoke("📱 视频传输信息:")
-            logCallback?.invoke("  - 原始分辨率: ${screenWidth}x${screenHeight}")
-            logCallback?.invoke("  - 传输分辨率: ${targetWidth}x${targetHeight} (标清模式)")
-            
-            // 关键修复：发送设备原始分辨率用于坐标转换
-            // Web端需要知道设备的真实分辨率来正确映射坐标
-            sendDeviceResolution(screenWidth, screenHeight)
-            
-            // 同时发送视频传输分辨率用于参考
-            sendVideoResolution(targetWidth, targetHeight)
-            
-            // 使用Intent创建ScreenCapturer（WebRTC库需要Intent，不是MediaProjection对象）
-            logCallback?.invoke("🎥 创建屏幕捕获器...")
+            resetIceCandidateStats()
+            val displayInfo = getDisplayInfo()
+            activeCaptureConfig = requestedCaptureConfig.resolve(displayInfo)
+
+            logCallback?.invoke("📱 当前显示信息: ${displayInfo.width}x${displayInfo.height}, rotation=${displayInfo.rotationDegrees}°")
+            logCallback?.invoke("🎞️ 目标采集参数: ${activeCaptureConfig.width}x${activeCaptureConfig.height}@${activeCaptureConfig.frameRate}fps")
+
+            sendDeviceResolution(displayInfo)
+            sendVideoResolution(activeCaptureConfig.width, activeCaptureConfig.height, activeCaptureConfig.frameRate)
+
             videoCapturer = createScreenCapturer(data)
-            
-            logCallback?.invoke("📹 创建视频源...")
             videoSource = factory.createVideoSource(false)
-            
-            logCallback?.invoke("🔗 初始化视频捕获器...")
-            videoCapturer?.initialize(SurfaceTextureHelper.create("CaptureThread", null), context, videoSource?.capturerObserver)
-            
-            logCallback?.invoke("▶️ 启动视频捕获: ${targetWidth}x${targetHeight}@30fps (标清模式)")
-            videoCapturer?.startCapture(targetWidth, targetHeight, 30)
-            
-            logCallback?.invoke("🎞️ 创建视频轨道...")
+
+            if (surfaceTextureHelper == null) {
+                surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", null)
+            }
+            videoCapturer?.initialize(surfaceTextureHelper, context, videoSource?.capturerObserver)
+            videoCapturer?.startCapture(activeCaptureConfig.width, activeCaptureConfig.height, activeCaptureConfig.frameRate)
+
             localVideoTrack = factory.createVideoTrack("video", videoSource)
-            
-            logCallback?.invoke("🎵 创建音频源和轨道...")
-            audioSource = factory.createAudioSource(MediaConstraints())
-            localAudioTrack = factory.createAudioTrack("audio", audioSource)
-            
-            // 验证轨道创建成功
-            if (localVideoTrack != null) {
-                logCallback?.invoke("✅ 视频轨道创建成功")
-            } else {
-                logCallback?.invoke("❌ 视频轨道创建失败")
+            if (audioSource == null) {
+                audioSource = factory.createAudioSource(MediaConstraints())
             }
-            
-            if (localAudioTrack != null) {
-                logCallback?.invoke("✅ 音频轨道创建成功")
-            } else {
-                logCallback?.invoke("❌ 音频轨道创建失败")
+            if (localAudioTrack == null) {
+                localAudioTrack = factory.createAudioTrack("audio", audioSource)
             }
-            
-            logCallback?.invoke("✅ 视频捕获已启动: ${targetWidth}x${targetHeight}@30fps (标清模式)")
+
+            logCallback?.invoke("✅ 视频捕获已启动: ${activeCaptureConfig.width}x${activeCaptureConfig.height}@${activeCaptureConfig.frameRate}fps")
             statusCallback?.invoke("捕获中")
-            
-            
-            // 如果有待处理的 offer，现在处理它
+
             pendingOffer?.let { offer ->
                 logCallback?.invoke("📥 处理待处理的 offer，开始建立WebRTC连接")
                 handleOffer(offer)
@@ -177,9 +142,6 @@ class WebRTCManager(private val context: Context) {
     private fun stopCapture() {
         try {
             logCallback?.invoke("🛑 停止现有屏幕捕获...")
-            
-            // 停止定期刷新
-            
             videoCapturer?.stopCapture()
             videoCapturer?.dispose()
             videoCapturer = null
@@ -192,10 +154,6 @@ class WebRTCManager(private val context: Context) {
             
             videoSource?.dispose()
             videoSource = null
-            
-            audioSource?.dispose()
-            audioSource = null
-            
             logCallback?.invoke("✓ 屏幕捕获资源已清理")
         } catch (e: Exception) {
             logCallback?.invoke("⚠️ 清理捕获资源时出错: ${e.message}")
@@ -203,10 +161,12 @@ class WebRTCManager(private val context: Context) {
     }
     
     private fun createPeerConnectionFactory(): PeerConnectionFactory {
+        peerConnectionFactory?.let { return it }
         return PeerConnectionFactory.builder()
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(null, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(null))
             .createPeerConnectionFactory()
+            .also { peerConnectionFactory = it }
     }
     
     private fun createScreenCapturer(mediaProjectionPermissionResultData: Intent): VideoCapturer {
@@ -237,6 +197,10 @@ class WebRTCManager(private val context: Context) {
             
             when (type) {
                 "offer" -> {
+                    jsonObject.getAsJsonObject("videoConstraints")?.let { constraints ->
+                        requestedCaptureConfig = parseCaptureConfig(constraints)
+                        logCallback?.invoke("收到前端采集期望: ${requestedCaptureConfig.width}x${requestedCaptureConfig.height}@${requestedCaptureConfig.frameRate}fps")
+                    }
                     val offerObj = jsonObject.getAsJsonObject("offer")
                     if (offerObj != null) {
                         val sdpType = offerObj.get("type")?.asString
@@ -299,7 +263,21 @@ class WebRTCManager(private val context: Context) {
             
             val iceServers = listOf(
                 PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+                PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer(),
+                PeerConnection.IceServer.builder("stun:stun2.l.google.com:19302").createIceServer(),
                 PeerConnection.IceServer.builder("turn:openrelay.metered.ca:80")
+                    .setUsername("openrelayproject")
+                    .setPassword("openrelayproject")
+                    .createIceServer(),
+                PeerConnection.IceServer.builder("turn:openrelay.metered.ca:80?transport=tcp")
+                    .setUsername("openrelayproject")
+                    .setPassword("openrelayproject")
+                    .createIceServer(),
+                PeerConnection.IceServer.builder("turn:openrelay.metered.ca:443")
+                    .setUsername("openrelayproject")
+                    .setPassword("openrelayproject")
+                    .createIceServer(),
+                PeerConnection.IceServer.builder("turn:openrelay.metered.ca:443?transport=tcp")
                     .setUsername("openrelayproject")
                     .setPassword("openrelayproject")
                     .createIceServer()
@@ -307,17 +285,23 @@ class WebRTCManager(private val context: Context) {
             
             val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
                 // 优化网络传输
-                tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED
+                tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.ENABLED
                 bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
                 rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
                 continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+                iceCandidatePoolSize = 6
                 // 启用 DSCP 标记以提高 QoS
                 enableDscp = true
             }
+            logCallback?.invoke("ICE服务器配置: ${iceServers.joinToString { it.urls.toString() }}")
             
             peerConnection = factory.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
                 override fun onIceCandidate(candidate: IceCandidate?) {
-                    candidate?.let { sendIceCandidate(it) }
+                    candidate?.let {
+                        recordIceCandidate(localIceCandidateStats, it)
+                        logCallback?.invoke("📤 本地ICE候选: ${describeIceCandidate(it)}")
+                        sendIceCandidate(it)
+                    }
                 }
                 
                 override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
@@ -374,7 +358,13 @@ class WebRTCManager(private val context: Context) {
                     }
                 }
                 override fun onIceConnectionReceivingChange(receiving: Boolean) {}
-                override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
+                override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {
+                    logCallback?.invoke("ICE收集状态变化: $state")
+                    if (state == PeerConnection.IceGatheringState.COMPLETE) {
+                        logIceCandidateSummary("android-gather-complete")
+                        warnIfRelayMissing("android-gather-complete")
+                    }
+                }
                 override fun onAddStream(stream: MediaStream?) {}
                 override fun onRemoveStream(stream: MediaStream?) {}
                 override fun onDataChannel(channel: DataChannel?) {
@@ -448,16 +438,20 @@ class WebRTCManager(private val context: Context) {
     
     private fun handleIceCandidate(candidate: IceCandidate) {
         peerConnection?.addIceCandidate(candidate)
-        logCallback?.invoke("已添加ICE候选")
+        recordIceCandidate(remoteIceCandidateStats, candidate)
+        logCallback?.invoke("📥 已添加远端ICE候选: ${describeIceCandidate(candidate)}")
     }
     
     private fun optimizeSdp(sdp: String): String {
         var optimizedSdp = sdp
         
-        // 设置更合理的码率（10Mbps）以平衡画质和网络负载
-        val maxBitrate = 10000  // 10Mbps
-        val minBitrate = 2000   // 2Mbps
-        val startBitrate = 5000 // 5Mbps
+        val maxBitrate = when {
+            activeCaptureConfig.height >= 1080 -> 8000
+            activeCaptureConfig.height >= 720 -> 4500
+            else -> 2500
+        }
+        val minBitrate = maxBitrate / 3
+        val startBitrate = maxBitrate * 2 / 3
         
         // 为 VP8/VP9 编码器设置码率参数
         optimizedSdp = optimizedSdp.replace(
@@ -570,14 +564,42 @@ class WebRTCManager(private val context: Context) {
                     }
                 }
                 "click" -> performClick(data.x ?: 0f, data.y ?: 0f)
-                "swipe" -> performSwipe(data.x1 ?: 0f, data.y1 ?: 0f, data.x2 ?: 0f, data.y2 ?: 0f)
+                "doubleClick" -> performDoubleClick(data.x ?: 0f, data.y ?: 0f)
+                "longPress" -> performLongPress(data.x ?: 0f, data.y ?: 0f, data.durationMs ?: 500L)
+                "swipe" -> performSwipe(
+                    data.x1 ?: 0f,
+                    data.y1 ?: 0f,
+                    data.x2 ?: 0f,
+                    data.y2 ?: 0f,
+                    data.durationMs
+                )
                 "setQuality" -> handleQualityChange(data.settings)
-                "refresh-video" -> handleVideoRefresh()
+                "refresh-video" -> sendRefreshConfirmation()
+                "stopCapture" -> handleStopCaptureRequest()
                 else -> logCallback?.invoke("未知控制动作: ${data.action}")
             }
         } catch (e: Exception) {
             logCallback?.invoke("处理控制消息失败: ${e.message}")
         }
+    }
+
+    private fun handleStopCaptureRequest() {
+        logCallback?.invoke("🛑 收到停止投屏指令，准备停止屏幕采集")
+
+        try {
+            peerConnection?.close()
+            peerConnection?.dispose()
+            peerConnection = null
+        } catch (e: Exception) {
+            logCallback?.invoke("⚠️ 清理PeerConnection时出错: ${e.message}")
+        }
+
+        pendingOffer = null
+        stopCapture()
+        stopScreenCaptureService()
+
+        statusCallback?.invoke("已停止")
+        logCallback?.invoke("✓ 屏幕采集与前台录屏服务已停止")
     }
     
     private fun handleQualityChange(settings: QualitySettings?) {
@@ -585,92 +607,20 @@ class WebRTCManager(private val context: Context) {
             logCallback?.invoke("收到质量设置: ${qualitySettings.quality} - ${qualitySettings.resolution}@${qualitySettings.frameRate}fps")
             
             try {
-                // 解析分辨率
                 val resolutionParts = qualitySettings.resolution.split("x")
                 if (resolutionParts.size == 2) {
-                    val width = resolutionParts[0].toInt()
-                    val height = resolutionParts[1].toInt()
-                    val frameRate = qualitySettings.frameRate
-                    
-                    // 使用安全的方式调整质量：直接调用changeCaptureFormat
-                    videoCapturer?.let { capturer ->
-                        if (capturer is org.webrtc.ScreenCapturerAndroid) {
-                            capturer.changeCaptureFormat(width, height, frameRate)
-                            logCallback?.invoke("✓ 视频质量已调整: ${width}x${height}@${frameRate}fps")
-                            statusCallback?.invoke("质量已调整")
-                            
-                            // 发送新的视频传输分辨率到Web端
-                            sendVideoResolution(width, height)
-                            
-                            // 发送质量变更确认
-                            sendQualityChangeConfirmation(qualitySettings.quality, width, height, frameRate)
-                        } else {
-                            logCallback?.invoke("⚠️ 不支持的捕获器类型，无法调整质量")
-                        }
-                    } ?: run {
-                        logCallback?.invoke("⚠️ 视频捕获器不可用，无法调整质量")
-                    }
+                    requestedCaptureConfig = CaptureConfig(
+                        width = resolutionParts[0].toInt(),
+                        height = resolutionParts[1].toInt(),
+                        frameRate = qualitySettings.frameRate
+                    )
+                    applyCaptureConfig(requestedCaptureConfig, qualitySettings.quality)
                 } else {
                     logCallback?.invoke("✗ 分辨率格式错误: ${qualitySettings.resolution}")
                 }
             } catch (e: Exception) {
                 logCallback?.invoke("✗ 调整视频质量失败: ${e.message}")
             }
-        }
-    }
-    
-    /** 处理视频刷新请求 */
-    private fun handleVideoRefresh() {
-        logCallback?.invoke("🔄 收到视频刷新请求")
-        
-        try {
-            videoCapturer?.let { capturer ->
-                if (localVideoTrack != null) {
-                    logCallback?.invoke("🔄 执行视频刷新（使用changeCaptureFormat）")
-                    
-                    try {
-                        // 获取当前参数
-                        val displayMetrics = context.resources.displayMetrics
-                        val screenWidth = displayMetrics.widthPixels
-                        val screenHeight = displayMetrics.heightPixels
-                        val targetWidth = 720
-                        val targetHeight = (screenHeight * 720.0 / screenWidth).toInt()
-                        
-                        // 使用changeCaptureFormat刷新，不重新创建ScreenCapturer
-                        if (capturer is org.webrtc.ScreenCapturerAndroid) {
-                            // 先微调帧率触发刷新
-                            capturer.changeCaptureFormat(targetWidth, targetHeight, 29)
-                            
-                            // 200ms后恢复正常帧率
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                try {
-                                    capturer.changeCaptureFormat(targetWidth, targetHeight, 30)
-                                    logCallback?.invoke("✓ 视频刷新完成")
-                                    sendRefreshConfirmation()
-                                } catch (e: Exception) {
-                                    logCallback?.invoke("⚠️ 恢复帧率时出错: ${e.message}")
-                                    sendRefreshConfirmation()
-                                }
-                            }, 200)
-                        } else {
-                            logCallback?.invoke("⚠️ 不支持的捕获器类型，跳过刷新")
-                            sendRefreshConfirmation()
-                        }
-                    } catch (e: Exception) {
-                        logCallback?.invoke("❌ 视频刷新失败: ${e.message}")
-                        sendRefreshConfirmation()
-                    }
-                } else {
-                    logCallback?.invoke("⚠️ 视频轨道不可用，无法刷新")
-                    sendRefreshConfirmation()
-                }
-            } ?: run {
-                logCallback?.invoke("⚠️ 视频捕获器不可用，无法刷新")
-                sendRefreshConfirmation()
-            }
-        } catch (e: Exception) {
-            logCallback?.invoke("❌ 处理视频刷新请求失败: ${e.message}")
-            sendRefreshConfirmation()
         }
     }
     
@@ -686,34 +636,35 @@ class WebRTCManager(private val context: Context) {
         mqttManager?.publish(topic, gson.toJson(confirmMessage))
     }
     
-    /** 发送设备分辨率信息到Web端 */
-    private fun sendDeviceResolution(width: Int, height: Int) {
+    private fun sendDeviceResolution(displayInfo: DisplayInfo) {
         val resolutionMessage = mapOf(
             "type" to "device-resolution",
             "deviceName" to deviceName,
-            "width" to width,
-            "height" to height,
+            "width" to displayInfo.width,
+            "height" to displayInfo.height,
+            "rotation" to displayInfo.rotationDegrees,
+            "densityDpi" to displayInfo.densityDpi,
             "timestamp" to System.currentTimeMillis(),
             "from" to "device"
         )
         val topic = "control/$username/$deviceName/feedback"
         mqttManager?.publish(topic, gson.toJson(resolutionMessage))
-        logCallback?.invoke("✓ 已发送设备分辨率信息: ${width}x${height}")
+        logCallback?.invoke("✓ 已发送设备分辨率信息: ${displayInfo.width}x${displayInfo.height}, rotation=${displayInfo.rotationDegrees}")
     }
     
-    /** 发送视频传输分辨率信息到Web端 */
-    private fun sendVideoResolution(width: Int, height: Int) {
+    private fun sendVideoResolution(width: Int, height: Int, frameRate: Int) {
         val resolutionMessage = mapOf(
             "type" to "video-resolution",
             "deviceName" to deviceName,
             "width" to width,
             "height" to height,
+            "frameRate" to frameRate,
             "timestamp" to System.currentTimeMillis(),
             "from" to "device"
         )
         val topic = "control/$username/$deviceName/feedback"
         mqttManager?.publish(topic, gson.toJson(resolutionMessage))
-        logCallback?.invoke("✓ 已发送视频传输分辨率信息: ${width}x${height}")
+        logCallback?.invoke("✓ 已发送视频传输分辨率信息: ${width}x${height}@${frameRate}fps")
     }
     
     /** 发送质量变更确认消息 */
@@ -756,79 +707,67 @@ class WebRTCManager(private val context: Context) {
             return
         }
         
-        // 获取当前屏幕分辨率用于坐标转换
-        val displayMetrics = context.resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-        
-        logCallback?.invoke("👆 执行点击操作:")
-        logCallback?.invoke("  - 接收坐标: ($x, $y)")
-        logCallback?.invoke("  - 屏幕分辨率: ${screenWidth}x${screenHeight}")
-        
-        // 关键修复：Web端发送的坐标是基于设备原始分辨率的，直接使用即可
-        // 不需要进行缩放转换，因为Web端已经使用了正确的设备分辨率进行计算
-        
-        // 边界检查
-        val clampedX = x.coerceIn(0f, (screenWidth - 1).toFloat())
-        val clampedY = y.coerceIn(0f, (screenHeight - 1).toFloat())
-        
-        if (clampedX != x || clampedY != y) {
-            logCallback?.invoke("  - ⚠️ 坐标超出范围，已调整为: ($clampedX, $clampedY)")
-        }
-        
-        logCallback?.invoke("  - 最终执行坐标: ($clampedX, $clampedY)")
-        AccessibilityHelper.performClick(clampedX, clampedY)
-        
-        // 发送确认消息回Web端
-        sendClickConfirmation(clampedX, clampedY)
+        val point = clampToDisplay(x, y)
+        logCallback?.invoke("👆 执行点击: (${point.x}, ${point.y})")
+        AccessibilityHelper.performClick(point.x, point.y)
+        sendClickConfirmation(point.x, point.y, "click")
     }
-    
-    private fun sendClickConfirmation(x: Float, y: Float) {
-        val confirmMessage = mapOf(
+
+    private fun performDoubleClick(x: Float, y: Float) {
+        if (!AccessibilityHelper.isServiceConnected()) {
+            logCallback?.invoke("❌ 无障碍服务未启用，无法执行双击操作")
+            return
+        }
+        val point = clampToDisplay(x, y)
+        logCallback?.invoke("👆 执行双击: (${point.x}, ${point.y})")
+        AccessibilityHelper.performDoubleClick(point.x, point.y)
+        sendClickConfirmation(point.x, point.y, "doubleClick")
+    }
+
+    private fun performLongPress(x: Float, y: Float, durationMs: Long) {
+        if (!AccessibilityHelper.isServiceConnected()) {
+            logCallback?.invoke("❌ 无障碍服务未启用，无法执行长按操作")
+            return
+        }
+        val point = clampToDisplay(x, y)
+        val finalDuration = durationMs.coerceIn(350L, 1200L)
+        logCallback?.invoke("👆 执行长按: (${point.x}, ${point.y}), duration=${finalDuration}ms")
+        AccessibilityHelper.performLongPress(point.x, point.y, finalDuration)
+        sendClickConfirmation(point.x, point.y, "longPress", finalDuration)
+    }
+
+    private fun sendClickConfirmation(x: Float, y: Float, action: String, durationMs: Long? = null) {
+        val confirmMessage = mutableMapOf<String, Any>(
             "type" to "click-confirmation",
+            "action" to action,
             "deviceName" to deviceName,
             "x" to x,
             "y" to y,
             "timestamp" to System.currentTimeMillis(),
             "from" to "device"
         )
+        durationMs?.let { confirmMessage["durationMs"] = it }
         val topic = "control/$username/$deviceName/feedback"
         mqttManager?.publish(topic, gson.toJson(confirmMessage))
     }
     
-    private fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float) {
+    private fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long?) {
         if (!AccessibilityHelper.isServiceConnected()) {
             logCallback?.invoke("❌ 无障碍服务未启用，无法执行滑动操作")
             return
         }
-        
-        // 获取当前屏幕分辨率用于验证
-        val displayMetrics = context.resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-        
-        logCallback?.invoke("👆 执行滑动操作:")
-        logCallback?.invoke("  - 起始坐标: ($x1, $y1)")
-        logCallback?.invoke("  - 结束坐标: ($x2, $y2)")
-        logCallback?.invoke("  - 屏幕分辨率: ${screenWidth}x${screenHeight}")
-        
-        // 边界检查
-        val clampedX1 = x1.coerceIn(0f, (screenWidth - 1).toFloat())
-        val clampedY1 = y1.coerceIn(0f, (screenHeight - 1).toFloat())
-        val clampedX2 = x2.coerceIn(0f, (screenWidth - 1).toFloat())
-        val clampedY2 = y2.coerceIn(0f, (screenHeight - 1).toFloat())
-        
-        if (clampedX1 != x1 || clampedY1 != y1 || clampedX2 != x2 || clampedY2 != y2) {
-            logCallback?.invoke("  - ⚠️ 坐标超出范围，已调整为: ($clampedX1, $clampedY1) -> ($clampedX2, $clampedY2)")
-        }
-        
-        AccessibilityHelper.performSwipe(clampedX1, clampedY1, clampedX2, clampedY2)
-        
-        // 发送确认消息回Web端
-        sendSwipeConfirmation(clampedX1, clampedY1, clampedX2, clampedY2)
+
+        val start = clampToDisplay(x1, y1)
+        val end = clampToDisplay(x2, y2)
+        val distance = hypot((end.x - start.x).toDouble(), (end.y - start.y).toDouble())
+        val finalDuration = durationMs ?: (120L + distance / 5.5).roundToInt().toLong().coerceIn(140L, 700L)
+
+        logCallback?.invoke("👆 执行滑动: (${start.x}, ${start.y}) -> (${end.x}, ${end.y}), duration=${finalDuration}ms")
+        AccessibilityHelper.performSwipe(start.x, start.y, end.x, end.y, finalDuration)
+        sendSwipeConfirmation(start.x, start.y, end.x, end.y, finalDuration)
     }
     
-    private fun sendSwipeConfirmation(x1: Float, y1: Float, x2: Float, y2: Float) {
+    private fun sendSwipeConfirmation(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long) {
         val confirmMessage = mapOf(
             "type" to "swipe-confirmation",
             "deviceName" to deviceName,
@@ -836,6 +775,7 @@ class WebRTCManager(private val context: Context) {
             "y1" to y1,
             "x2" to x2,
             "y2" to y2,
+            "durationMs" to durationMs,
             "timestamp" to System.currentTimeMillis(),
             "from" to "device"
         )
@@ -860,6 +800,131 @@ class WebRTCManager(private val context: Context) {
         logCallback?.invoke("🏠 执行主页操作")
         AccessibilityHelper.performHome()
     }
+
+    private fun clampToDisplay(x: Float, y: Float): TouchPoint {
+        val displayInfo = getDisplayInfo()
+        return TouchPoint(
+            x = x.coerceIn(0f, (displayInfo.width - 1).toFloat()),
+            y = y.coerceIn(0f, (displayInfo.height - 1).toFloat())
+        )
+    }
+
+    private fun parseCaptureConfig(constraints: com.google.gson.JsonObject): CaptureConfig {
+        val width = constraints.get("width")?.asInt ?: 1280
+        val height = constraints.get("height")?.asInt ?: 720
+        val frameRate = constraints.get("frameRate")?.asInt ?: 24
+        return CaptureConfig(width = width, height = height, frameRate = frameRate)
+    }
+
+    private fun applyCaptureConfig(config: CaptureConfig, qualityName: String? = null) {
+        val displayInfo = getDisplayInfo()
+        val resolved = config.resolve(displayInfo)
+        videoCapturer?.let { capturer ->
+            if (capturer is ScreenCapturerAndroid) {
+                capturer.changeCaptureFormat(resolved.width, resolved.height, resolved.frameRate)
+                activeCaptureConfig = resolved
+                sendDeviceResolution(displayInfo)
+                sendVideoResolution(resolved.width, resolved.height, resolved.frameRate)
+                sendQualityChangeConfirmation(
+                    qualityName ?: "custom",
+                    resolved.width,
+                    resolved.height,
+                    resolved.frameRate
+                )
+                logCallback?.invoke("✓ 视频质量已调整: ${resolved.width}x${resolved.height}@${resolved.frameRate}fps")
+                statusCallback?.invoke("质量已调整")
+            }
+        } ?: logCallback?.invoke("⚠️ 视频捕获器不可用，无法调整质量")
+    }
+
+    private fun getDisplayInfo(): DisplayInfo {
+        val metrics = context.resources.displayMetrics
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        var width = metrics.widthPixels
+        var height = metrics.heightPixels
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            width = bounds.width()
+            height = bounds.height()
+        }
+
+        val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context.display?.rotation ?: Surface.ROTATION_0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.rotation
+        }
+
+        return DisplayInfo(
+            width = width,
+            height = height,
+            densityDpi = metrics.densityDpi,
+            rotationDegrees = when (rotation) {
+                Surface.ROTATION_90 -> 90
+                Surface.ROTATION_180 -> 180
+                Surface.ROTATION_270 -> 270
+                else -> 0
+            }
+        )
+    }
+
+    private fun describeIceCandidate(candidate: IceCandidate): String {
+        val candidateString = candidate.sdp
+        val parts = candidateString.split(" ")
+        val address = parts.getOrNull(4) ?: "unknown"
+        val port = parts.getOrNull(5) ?: "unknown"
+        val protocol = parts.getOrNull(2)?.lowercase() ?: "unknown"
+        val type = Regex(""" typ ([a-zA-Z0-9]+)""").find(candidateString)?.groupValues?.getOrNull(1) ?: "unknown"
+        val tcpType = Regex(""" tcptype ([a-zA-Z0-9]+)""").find(candidateString)?.groupValues?.getOrNull(1)
+        return buildString {
+            append("type=").append(type)
+            append(", protocol=").append(protocol)
+            append(", address=").append(address)
+            append(", port=").append(port)
+            candidate.sdpMid?.let { append(", mid=").append(it) }
+            append(", mLine=").append(candidate.sdpMLineIndex)
+            tcpType?.let { append(", tcpType=").append(it) }
+        }
+    }
+
+    private fun resetIceCandidateStats() {
+        localIceCandidateStats = mutableMapOf(
+            "host" to 0,
+            "srflx" to 0,
+            "relay" to 0,
+            "prflx" to 0,
+            "unknown" to 0
+        )
+        remoteIceCandidateStats = mutableMapOf(
+            "host" to 0,
+            "srflx" to 0,
+            "relay" to 0,
+            "prflx" to 0,
+            "unknown" to 0
+        )
+    }
+
+    private fun recordIceCandidate(stats: MutableMap<String, Int>, candidate: IceCandidate) {
+        val type = Regex(""" typ ([a-zA-Z0-9]+)""").find(candidate.sdp)?.groupValues?.getOrNull(1) ?: "unknown"
+        stats[type] = (stats[type] ?: 0) + 1
+        logIceCandidateSummary("candidate-$type")
+    }
+
+    private fun logIceCandidateSummary(reason: String) {
+        val localSummary = "host=${localIceCandidateStats["host"]}, srflx=${localIceCandidateStats["srflx"]}, relay=${localIceCandidateStats["relay"]}, prflx=${localIceCandidateStats["prflx"]}, unknown=${localIceCandidateStats["unknown"]}"
+        val remoteSummary = "host=${remoteIceCandidateStats["host"]}, srflx=${remoteIceCandidateStats["srflx"]}, relay=${remoteIceCandidateStats["relay"]}, prflx=${remoteIceCandidateStats["prflx"]}, unknown=${remoteIceCandidateStats["unknown"]}"
+        logCallback?.invoke("[ICE统计:$reason] local {$localSummary}; remote {$remoteSummary}")
+    }
+
+    private fun warnIfRelayMissing(reason: String) {
+        if ((localIceCandidateStats["relay"] ?: 0) == 0) {
+            logCallback?.invoke("[ICE统计:$reason] 本地尚未获得 relay 候选")
+        }
+        if ((remoteIceCandidateStats["relay"] ?: 0) == 0) {
+            logCallback?.invoke("[ICE统计:$reason] 远端尚未获得 relay 候选")
+        }
+    }
     
     fun resetConnection() {
         try {
@@ -881,8 +946,6 @@ class WebRTCManager(private val context: Context) {
     
     fun release() {
         try {
-            // 停止定期刷新
-            
             videoCapturer?.stopCapture()
             videoCapturer?.dispose()
             videoCapturer = null
@@ -902,6 +965,8 @@ class WebRTCManager(private val context: Context) {
             
             audioSource?.dispose()
             audioSource = null
+            surfaceTextureHelper?.dispose()
+            surfaceTextureHelper = null
             
             pendingOffer = null
             screenCaptureIntent = null
@@ -909,6 +974,16 @@ class WebRTCManager(private val context: Context) {
             logCallback?.invoke("WebRTC 资源已完全清理")
         } catch (e: Exception) {
             logCallback?.invoke("清理资源时出错: ${e.message}")
+        }
+    }
+
+    private fun stopScreenCaptureService() {
+        try {
+            ScreenCaptureService.instance?.stopSelf()
+            context.stopService(Intent(context, ScreenCaptureService::class.java))
+            logCallback?.invoke("✓ 已请求停止前台录屏服务")
+        } catch (e: Exception) {
+            logCallback?.invoke("⚠️ 停止录屏服务失败: ${e.message}")
         }
     }
     
@@ -927,6 +1002,7 @@ class WebRTCManager(private val context: Context) {
         val y1: Float? = null,
         val x2: Float? = null,
         val y2: Float? = null,
+        val durationMs: Long? = null,
         val key: String? = null,
         val settings: QualitySettings? = null
     )
@@ -935,5 +1011,45 @@ class WebRTCManager(private val context: Context) {
         val quality: String,
         val resolution: String,
         val frameRate: Int
+    )
+
+    data class CaptureConfig(
+        val width: Int = 1280,
+        val height: Int = 720,
+        val frameRate: Int = 24
+    ) {
+        fun resolve(displayInfo: DisplayInfo): CaptureConfig {
+            val safeFrameRate = frameRate.coerceIn(15, 30)
+            val displayLongSide = maxOf(displayInfo.width, displayInfo.height)
+            val displayShortSide = minOf(displayInfo.width, displayInfo.height)
+            val requestedLongSide = maxOf(width, height).coerceIn(854, displayLongSide)
+            val aspectRatio = displayShortSide.toDouble() / displayLongSide.toDouble()
+            val resolvedShortSide = ((requestedLongSide * aspectRatio) / 2.0).roundToInt() * 2
+            return if (displayInfo.height >= displayInfo.width) {
+                CaptureConfig(
+                    width = resolvedShortSide.coerceAtLeast(480),
+                    height = requestedLongSide,
+                    frameRate = safeFrameRate
+                )
+            } else {
+                CaptureConfig(
+                    width = requestedLongSide,
+                    height = resolvedShortSide.coerceAtLeast(480),
+                    frameRate = safeFrameRate
+                )
+            }
+        }
+    }
+
+    data class DisplayInfo(
+        val width: Int,
+        val height: Int,
+        val densityDpi: Int,
+        val rotationDegrees: Int
+    )
+
+    data class TouchPoint(
+        val x: Float,
+        val y: Float
     )
 }

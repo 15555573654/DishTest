@@ -46,6 +46,7 @@
             @touchstart="handleVideoTouchStart"
             @touchmove="handleVideoTouchMove"
             @touchend="handleVideoTouchEnd"
+            @touchcancel="cancelGesture"
           ></video>
           
           <!-- 坐标网格覆盖层 -->
@@ -185,8 +186,8 @@ export default {
       isDragging: false,
       isResizing: false,
       resizeType: '',
-      dragStartX: 0,
-      dragStartY: 0,
+      dialogDragStartX: 0,
+      dialogDragStartY: 0,
       dialogLeft: 0,
       dialogTop: 0,
       resizeStartX: 0,
@@ -209,30 +210,31 @@ export default {
       },
 
       videoConstraints: {
-        resolution: '1280x720', // 固定标清分辨率，不使用auto
-        frameRate: 30 // 固定30fps
+        resolution: '1280x720',
+        frameRate: 24
       },
 
-      // 质量预设 - 简化为3个选项，默认标清
       qualityPresets: {
-        high: { resolution: '1920x1080', frameRate: 60, label: '高清' },
-        medium: { resolution: '1280x720', frameRate: 30, label: '标清' },
-        low: { resolution: '854x480', frameRate: 30, label: '流畅' }
+        high: { resolution: '1920x1080', frameRate: 30, label: '高清' },
+        medium: { resolution: '1280x720', frameRate: 24, label: '标清' },
+        low: { resolution: '854x480', frameRate: 20, label: '流畅' }
       },
-      currentQuality: 'medium', // 默认标清模式
-      videoFitMode: 'contain', // 视频填充模式：contain(完整显示，不裁剪)
+      currentQuality: 'medium',
+      videoFitMode: 'contain',
 
       isMobile: false,
       debugStatsLogged: false, // 调试标志，避免重复输出统计类型
       
       // 触摸和拖拽状态
       isDraggingVideo: false,
-      dragStartTime: 0,
-      dragStartX: 0,
-      dragStartY: 0,
-      dragStartClientX: 0,
-      dragStartClientY: 0,
-      lastTouchTime: 0,
+      gestureStartTime: 0,
+      gestureStartX: 0,
+      gestureStartY: 0,
+      gestureStartClientX: 0,
+      gestureStartClientY: 0,
+      pendingSingleTapTimer: null,
+      pendingTap: null,
+      lastPointerType: 'mouse',
       
       // 校准模式
       calibrationMode: false,
@@ -250,10 +252,14 @@ export default {
       
       // 视频传输分辨率（从Android端获取）
       videoResolution: null,
+      videoRotation: 0,
       
       // 消息去重
       processedMessages: null,
-      initialResolutionReceived: false
+      initialResolutionReceived: false,
+      feedbackTopic: '',
+      feedbackMessageHandler: null,
+      pendingStreamId: ''
     };
   },
   computed: {
@@ -355,9 +361,12 @@ export default {
         if (this.$refs.remoteVideo) {
           const video = this.$refs.remoteVideo;
 
-          // 检查是否是同一个流，如果不是则更新
-          if (!video.srcObject || video.srcObject.id !== stream.id) {
+          // 避免 video/audio 两次 ontrack 在异步设置前重复绑定同一个流
+          if (this.pendingStreamId === stream.id) {
+            console.log('相同流正在绑定中，跳过重复设置');
+          } else if (!video.srcObject || video.srcObject.id !== stream.id) {
             console.log('设置新的视频流，流ID:', stream.id);
+            this.pendingStreamId = stream.id;
 
             // 先暂停当前播放，避免冲突
             if (video.srcObject) {
@@ -365,84 +374,71 @@ export default {
               video.srcObject = null;
             }
 
-            // 等待一小段时间确保资源释放
-            setTimeout(() => {
-              // 设置视频源
-              video.srcObject = stream;
+            // 设置视频源
+            video.srcObject = stream;
 
-              // 优化视频播放设置 - 降低延迟
-              video.playsInline = true;
-              video.muted = false; // 启用音频
-              video.autoplay = true;
+            // 优化视频播放设置 - 优先保证自动播放成功
+            video.playsInline = true;
+            video.muted = true;
+            video.defaultMuted = true;
+            video.autoplay = true;
+            video.volume = 0;
 
-              // 设置低延迟属性
-              if (video.hasAttribute) {
-                video.setAttribute('playsinline', '');
-                video.setAttribute('webkit-playsinline', '');
+            if (video.hasAttribute) {
+              video.setAttribute('playsinline', '');
+              video.setAttribute('webkit-playsinline', '');
+              video.setAttribute('muted', '');
+              video.setAttribute('autoplay', '');
+            }
+
+            try {
+              if ('latencyHint' in video) {
+                video.latencyHint = 0;
               }
+              video.preload = 'auto';
+              video.disablePictureInPicture = true;
+              video.controls = false;
+            } catch (err) {
+              console.warn('部分视频属性设置失败:', err);
+            }
 
-              // 关键：设置视频缓冲区为最小值以降低延迟
+            video.style.objectFit = 'contain';
+
+            console.log('✓ 视频元素srcObject已设置');
+
+            const playVideo = async () => {
               try {
-                // 尝试设置 latencyHint（Chrome 支持）
-                if ('latencyHint' in video) {
-                  video.latencyHint = 0; // 最低延迟
-                }
-
-                // 设置预加载策略
-                video.preload = 'auto';
-
-                // 禁用画中画
-                video.disablePictureInPicture = true;
-
-                // 设置控制条（可选）
-                video.controls = false;
+                await video.play();
+                console.log('✓ 视频开始播放');
+                this.enableLowLatencyMode(video);
+                this.startStatsMonitoring();
               } catch (err) {
-                console.warn('部分视频属性设置失败:', err);
-              }
+                console.error('✗ 视频播放失败:', err);
 
-              // 应用完整显示模式（保持宽高比，不裁剪）
-              video.style.objectFit = 'contain';
-
-              console.log('✓ 视频元素srcObject已设置');
-
-              // 播放视频 - 添加重试机制
-              const playVideo = async () => {
-                try {
-                  await video.play();
-                  console.log('✓ 视频开始播放');
-
-                  // 尝试进入低延迟模式
-                  this.enableLowLatencyMode(video);
-
-                  // 启动统计信息监控
-                  this.startStatsMonitoring();
-                  
-                } catch (err) {
-                  console.error('✗ 视频播放失败:', err);
-                  
-                  // 如果是 AbortError，尝试重新播放
-                  if (err.name === 'AbortError') {
-                    console.log('检测到播放中断，1秒后重试...');
-                    setTimeout(() => {
-                      if (video.srcObject && video.readyState >= 2) {
-                        video.play().catch(retryErr => {
-                          console.error('重试播放失败:', retryErr);
-                        });
-                      }
-                    }, 1000);
-                  } else if (err.name === 'NotAllowedError') {
-                    this.$message.warning('请点击视频区域以开始播放');
-                  }
+                if (err.name === 'AbortError') {
+                  console.log('检测到播放中断，300ms后重试...');
+                  setTimeout(() => {
+                    if (video.srcObject && video.readyState >= 2) {
+                      video.play().catch(retryErr => {
+                        console.error('重试播放失败:', retryErr);
+                      });
+                    }
+                  }, 300);
+                } else if (err.name === 'NotAllowedError') {
+                  this.$message.warning('浏览器阻止了自动播放，请点击视频区域继续播放');
                 }
-              };
-
-              // 等待视频元数据加载完成后再播放
-              if (video.readyState >= 2) {
-                playVideo();
-              } else {
-                video.addEventListener('loadedmetadata', playVideo, { once: true });
+              } finally {
+                if (this.pendingStreamId === stream.id) {
+                  this.pendingStreamId = '';
+                }
               }
-            }, 100); // 100ms 延迟确保资源释放
+            };
+
+            if (video.readyState >= 2) {
+              playVideo();
+            } else {
+              video.addEventListener('loadedmetadata', playVideo, { once: true });
+            }
           } else {
             console.log('视频元素已有相同流，跳过重复设置');
           }
@@ -490,18 +486,17 @@ export default {
 
       // 订阅反馈消息
       if (this.mqttClient) {
-        const feedbackTopic = `control/${this.username}/${this.deviceName}/feedback`;
-        this.mqttClient.subscribe(feedbackTopic, { qos: 1 }, (err) => {
+        this.feedbackTopic = `control/${this.username}/${this.deviceName}/feedback`;
+        this.mqttClient.subscribe(this.feedbackTopic, { qos: 1 }, (err) => {
           if (err) {
             console.error('订阅反馈消息失败:', err);
           } else {
-            console.log('已订阅反馈消息:', feedbackTopic);
+            console.log('已订阅反馈消息:', this.feedbackTopic);
           }
         });
 
-        // 监听反馈消息
-        this.mqttClient.on('message', (topic, message) => {
-          if (topic === feedbackTopic) {
+        this.feedbackMessageHandler = (topic, message) => {
+          if (topic === this.feedbackTopic) {
             try {
               const data = JSON.parse(message.toString());
               this.handleFeedbackMessage(data);
@@ -509,7 +504,8 @@ export default {
               console.error('解析反馈消息失败:', e);
             }
           }
-        });
+        };
+        this.mqttClient.on('message', this.feedbackMessageHandler);
       }
 
       // 更新 WebRTC 管理器配置
@@ -559,11 +555,11 @@ export default {
           break;
         case 'device-resolution':
           console.log(`✓ 收到设备分辨率: ${data.width}x${data.height}`);
-          // 更新设备分辨率信息，用于准确的坐标转换
           this.deviceResolution = {
             width: data.width,
             height: data.height
           };
+          this.videoRotation = data.rotation || 0;
           console.log('设备分辨率已更新，坐标转换将使用真实设备分辨率');
           
           // 只在初次收到设备分辨率时调整弹窗大小，避免视频流中断
@@ -580,10 +576,10 @@ export default {
           break;
         case 'video-resolution':
           console.log(`✓ 收到视频传输分辨率: ${data.width}x${data.height}`);
-          // 保存视频传输分辨率用于参考
           this.videoResolution = {
             width: data.width,
-            height: data.height
+            height: data.height,
+            frameRate: data.frameRate || 0
           };
           console.log('视频传输分辨率已更新');
           break;
@@ -602,8 +598,8 @@ export default {
     },
 
     /** 关闭弹窗 */
-    handleClose() {
-      this.stopScreencast();
+    async handleClose() {
+      await this.stopScreencast();
       this.cleanup();
     },
 
@@ -623,14 +619,15 @@ export default {
         this.connectionStatus = 'connecting';
         this.statusText = '正在建立连接...';
 
-        // 准备视频约束 - 使用固定标清分辨率
-        let constraints = {
-          width: 1280,
-          height: 720,
-          frameRate: 30
+        const preset = this.qualityPresets[this.currentQuality] || this.qualityPresets.medium;
+        const [width, height] = preset.resolution.split('x').map(Number);
+        const constraints = {
+          width,
+          height,
+          frameRate: preset.frameRate
         };
 
-        console.log('使用固定标清约束:', constraints);
+        console.log('使用初始视频约束:', constraints);
 
         await this.webrtcManager.start(constraints);
         this.$message.success('正在建立连接...');
@@ -643,7 +640,20 @@ export default {
     },
 
     /** 停止投屏 */
-    stopScreencast() {
+    async stopScreencast(options = {}) {
+      const { notifyDevice = true } = options;
+
+      if (notifyDevice) {
+        await this.sendControlCommand(
+          {
+            action: 'stopCapture',
+            deviceName: this.deviceName,
+            from: 'frontend'
+          },
+          false
+        );
+      }
+
       if (this.webrtcManager) {
         this.webrtcManager.stop();
       }
@@ -922,27 +932,47 @@ export default {
 
     /** 发送虚拟按键 */
     sendVirtualKey(key) {
-      if (!this.mqttClient) {
-        this.$message.warning('MQTT未连接');
-        return;
+      this.sendControlCommand(
+        {
+          action: 'virtualKey',
+          key,
+          deviceName: this.deviceName,
+          from: 'frontend'
+        }
+      );
+    },
+
+    /** 发送控制指令 */
+    sendControlCommand(payload, showWarning = true) {
+      if (this.webrtcManager && this.webrtcManager.isDataChannelOpen()) {
+        return Promise.resolve(this.webrtcManager.sendMessage(payload));
       }
 
-      // 通过MQTT发送控制指令
+      if (!this.mqttClient) {
+        if (showWarning) {
+          this.$message.warning('控制通道未连接');
+        }
+        return Promise.resolve(false);
+      }
+
       const controlMessage = {
         type: 'control',
-        action: 'virtualKey',
-        key: key,
-        deviceName: this.deviceName,
-        from: 'frontend'
+        ...payload
       };
-
       const topic = `control/${this.username}/${this.deviceName}`;
-      
-      this.mqttClient.publish(topic, JSON.stringify(controlMessage), { qos: 1 }, (err) => {
-        if (err) {
-          console.error('发送控制指令失败:', err);
-          this.$message.error('发送控制指令失败');
-        }
+
+      return new Promise((resolve) => {
+        this.mqttClient.publish(topic, JSON.stringify(controlMessage), { qos: 1 }, (err) => {
+          if (err) {
+            console.error('发送控制指令失败:', err);
+            if (showWarning) {
+              this.$message.error('发送控制指令失败');
+            }
+            resolve(false);
+            return;
+          }
+          resolve(true);
+        });
       });
     },
 
@@ -1012,7 +1042,7 @@ export default {
 
       try {
         // 停止当前连接
-        this.stopScreencast();
+        await this.stopScreencast({ notifyDevice: false });
 
         // 等待一小段时间确保资源释放
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -1146,8 +1176,8 @@ export default {
       }
 
       this.isDragging = true;
-      this.dragStartX = e.clientX;
-      this.dragStartY = e.clientY;
+      this.dialogDragStartX = e.clientX;
+      this.dialogDragStartY = e.clientY;
 
       e.preventDefault();
     },
@@ -1170,8 +1200,8 @@ export default {
     /** 鼠标移动 */
     handleMouseMove(e) {
       if (this.isDragging) {
-        const deltaX = e.clientX - this.dragStartX;
-        const deltaY = e.clientY - this.dragStartY;
+        const deltaX = e.clientX - this.dialogDragStartX;
+        const deltaY = e.clientY - this.dialogDragStartY;
 
         const dialog = document.querySelector('.screencast-control-dialog');
         if (dialog) {
@@ -1203,16 +1233,29 @@ export default {
     /** 清理资源 */
     cleanup() {
       this.stopStatsMonitoring();
+      this.cancelPendingTap();
 
       if (this.webrtcManager) {
         this.webrtcManager.cleanup();
       }
+
+      if (this.mqttClient && this.feedbackTopic) {
+        if (typeof this.mqttClient.unsubscribe === 'function') {
+          this.mqttClient.unsubscribe(this.feedbackTopic);
+        }
+        if (this.feedbackMessageHandler && typeof this.mqttClient.removeListener === 'function') {
+          this.mqttClient.removeListener('message', this.feedbackMessageHandler);
+        }
+      }
+      this.feedbackTopic = '';
+      this.feedbackMessageHandler = null;
 
       // 清理消息去重记录
       if (this.processedMessages) {
         this.processedMessages.clear();
       }
       this.initialResolutionReceived = false;
+      this.pendingStreamId = '';
 
       // 改进的视频元素清理
       if (this.$refs.remoteVideo) {
@@ -1242,6 +1285,7 @@ export default {
       }
 
       this.isStreaming = false;
+      this.isDraggingVideo = false;
     },
 
     /** 处理视频点击事件 */
@@ -1343,31 +1387,12 @@ export default {
         return;
       }
 
-      const rect = video.getBoundingClientRect();
-      
       // 清空现有网格
       const gridLines = gridContainer.querySelector('.grid-lines');
       const gridLabels = gridContainer.querySelector('.grid-labels');
       gridLines.innerHTML = '';
       gridLabels.innerHTML = '';
-
-      // 计算视频内容区域 - 使用设备分辨率计算宽高比
-      const deviceAspectRatio = deviceWidth / deviceHeight;
-      const displayAspectRatio = rect.width / rect.height;
-
-      let videoContentWidth, videoContentHeight, offsetX, offsetY;
-
-      if (deviceAspectRatio > displayAspectRatio) {
-        videoContentWidth = rect.width;
-        videoContentHeight = rect.width / deviceAspectRatio;
-        offsetX = 0;
-        offsetY = (rect.height - videoContentHeight) / 2;
-      } else {
-        videoContentHeight = rect.height;
-        videoContentWidth = rect.height * deviceAspectRatio;
-        offsetX = (rect.width - videoContentWidth) / 2;
-        offsetY = 0;
-      }
+      const { width: videoContentWidth, height: videoContentHeight, offsetX, offsetY } = this.getVideoContentRect();
 
       // 绘制网格线（4x4网格）
       const gridSize = 4;
@@ -1495,22 +1520,7 @@ export default {
       if (!this.isStreaming || !this.mqttClient) {
         return;
       }
-
-      this.isDraggingVideo = true;
-      this.dragStartTime = Date.now();
-      
-      // 记录起始位置（屏幕坐标）
-      const rect = this.$refs.remoteVideo.getBoundingClientRect();
-      this.dragStartClientX = event.clientX;
-      this.dragStartClientY = event.clientY;
-      
-      const coords = this.getVideoCoordinates(event);
-      if (coords) {
-        this.dragStartX = coords.x;
-        this.dragStartY = coords.y;
-        console.log(`开始拖拽: 设备坐标(${coords.x}, ${coords.y})`);
-      }
-      
+      this.beginGesture(event, 'mouse');
       event.preventDefault();
     },
 
@@ -1519,7 +1529,7 @@ export default {
       if (!this.isDraggingVideo || !this.isStreaming || !this.mqttClient) {
         return;
       }
-      
+
       event.preventDefault();
     },
 
@@ -1528,56 +1538,7 @@ export default {
       if (!this.isDraggingVideo || !this.isStreaming || !this.mqttClient) {
         return;
       }
-
-      const coords = this.getVideoCoordinates(event);
-      if (coords) {
-        const dragDuration = Date.now() - this.dragStartTime;
-        
-        // 计算屏幕坐标的拖拽距离
-        const screenDragDistance = Math.sqrt(
-          Math.pow(event.clientX - this.dragStartClientX, 2) + 
-          Math.pow(event.clientY - this.dragStartClientY, 2)
-        );
-        
-        // 计算设备坐标的拖拽距离
-        const deviceDragDistance = Math.sqrt(
-          Math.pow(coords.x - this.dragStartX, 2) + 
-          Math.pow(coords.y - this.dragStartY, 2)
-        );
-
-        console.log(`拖拽结束: 持续时间=${dragDuration}ms, 屏幕距离=${screenDragDistance.toFixed(1)}px, 设备距离=${deviceDragDistance.toFixed(1)}px`);
-        console.log(`起始位置: (${this.dragStartX}, ${this.dragStartY}) -> 结束位置: (${coords.x}, ${coords.y})`);
-
-        // 判断是点击还是滑动：屏幕距离大于15像素且持续时间大于150ms认为是滑动
-        if (screenDragDistance > 15 && dragDuration > 150) {
-          console.log('检测到滑动操作');
-          // 显示滑动轨迹
-          this.showSwipeTrail(this.dragStartClientX, this.dragStartClientY, event.clientX, event.clientY);
-          
-          if (this.calibrationMode) {
-            this.$message.info('校准模式下不支持滑动，请点击四个角落');
-          } else {
-            this.sendTouchEvent('swipe', this.dragStartX, this.dragStartY, coords.x, coords.y);
-          }
-        } else {
-          console.log('检测到点击操作');
-          // 添加可视化标记
-          this.showClickMarker(event.clientX, event.clientY);
-          
-          if (this.calibrationMode) {
-            // 校准模式：收集校准点
-            this.addCalibrationPoint(event, coords);
-          } else {
-            // 正常模式：发送点击事件
-            this.sendTouchEvent('click', coords.x, coords.y);
-            
-            // 显示坐标信息（用于调试）
-            this.showCoordinateInfo(event, coords);
-          }
-        }
-      }
-
-      this.isDraggingVideo = false;
+      this.finishGesture(event, 'mouse');
       event.preventDefault();
     },
 
@@ -1588,20 +1549,7 @@ export default {
       }
 
       const touch = event.touches[0];
-      this.isDraggingVideo = true;
-      this.dragStartTime = Date.now();
-      
-      // 记录起始位置（屏幕坐标）
-      this.dragStartClientX = touch.clientX;
-      this.dragStartClientY = touch.clientY;
-      
-      const coords = this.getVideoCoordinates(touch);
-      if (coords) {
-        this.dragStartX = coords.x;
-        this.dragStartY = coords.y;
-        console.log(`开始触摸拖拽: 设备坐标(${coords.x}, ${coords.y})`);
-      }
-      
+      this.beginGesture(touch, 'touch');
       event.preventDefault();
     },
 
@@ -1610,7 +1558,7 @@ export default {
       if (!this.isDraggingVideo || !this.isStreaming || !this.mqttClient) {
         return;
       }
-      
+
       event.preventDefault();
     },
 
@@ -1621,53 +1569,132 @@ export default {
       }
 
       const touch = event.changedTouches[0];
-      const coords = this.getVideoCoordinates(touch);
-      
-      if (coords) {
-        const dragDuration = Date.now() - this.dragStartTime;
-        
-        // 计算屏幕坐标的拖拽距离
-        const screenDragDistance = Math.sqrt(
-          Math.pow(touch.clientX - this.dragStartClientX, 2) + 
-          Math.pow(touch.clientY - this.dragStartClientY, 2)
-        );
-        
-        // 计算设备坐标的拖拽距离
-        const deviceDragDistance = Math.sqrt(
-          Math.pow(coords.x - this.dragStartX, 2) + 
-          Math.pow(coords.y - this.dragStartY, 2)
-        );
+      this.finishGesture(touch, 'touch');
+      event.preventDefault();
+    },
 
-        console.log(`触摸结束: 持续时间=${dragDuration}ms, 屏幕距离=${screenDragDistance.toFixed(1)}px, 设备距离=${deviceDragDistance.toFixed(1)}px`);
+    beginGesture(pointEvent, pointerType) {
+      const coords = this.getVideoCoordinates(pointEvent);
+      if (!coords) {
+        this.isDraggingVideo = false;
+        return;
+      }
 
-        // 触摸设备上的判断条件稍微宽松一些：屏幕距离大于10像素且持续时间大于100ms认为是滑动
-        if (screenDragDistance > 10 && dragDuration > 100) {
-          console.log('检测到触摸滑动操作');
-          // 显示滑动轨迹
-          this.showSwipeTrail(this.dragStartClientX, this.dragStartClientY, touch.clientX, touch.clientY);
-          
-          if (this.calibrationMode) {
-            this.$message.info('校准模式下不支持滑动，请点击四个角落');
-          } else {
-            this.sendTouchEvent('swipe', this.dragStartX, this.dragStartY, coords.x, coords.y);
-          }
+      this.isDraggingVideo = true;
+      this.lastPointerType = pointerType;
+      this.gestureStartTime = Date.now();
+      this.gestureStartClientX = pointEvent.clientX;
+      this.gestureStartClientY = pointEvent.clientY;
+      this.gestureStartX = coords.x;
+      this.gestureStartY = coords.y;
+    },
+
+    finishGesture(pointEvent, pointerType) {
+      const coords = this.getVideoCoordinates(pointEvent);
+      if (!coords) {
+        this.cancelGesture();
+        return;
+      }
+
+      const durationMs = Date.now() - this.gestureStartTime;
+      const screenDragDistance = Math.hypot(
+        pointEvent.clientX - this.gestureStartClientX,
+        pointEvent.clientY - this.gestureStartClientY
+      );
+      const deviceDragDistance = Math.hypot(
+        coords.x - this.gestureStartX,
+        coords.y - this.gestureStartY
+      );
+      const swipeThreshold = pointerType === 'touch' ? 8 : 12;
+
+      if (screenDragDistance >= swipeThreshold || deviceDragDistance >= 18) {
+        this.showSwipeTrail(this.gestureStartClientX, this.gestureStartClientY, pointEvent.clientX, pointEvent.clientY);
+        if (this.calibrationMode) {
+          this.$message.info('校准模式下不支持滑动，请点击四个角落');
         } else {
-          console.log('检测到触摸点击操作');
-          // 添加可视化标记
-          this.showClickMarker(touch.clientX, touch.clientY);
-          
-          if (this.calibrationMode) {
-            // 校准模式：收集校准点
-            this.addCalibrationPoint(touch, coords);
-          } else {
-            // 短时间小距离的触摸认为是点击
-            this.sendTouchEvent('click', coords.x, coords.y);
-          }
+          this.sendTouchEvent('swipe', {
+            x1: this.gestureStartX,
+            y1: this.gestureStartY,
+            x2: coords.x,
+            y2: coords.y,
+            durationMs: Math.max(140, Math.min(900, durationMs))
+          });
         }
+        this.cancelGesture();
+        return;
+      }
+
+      if (this.calibrationMode) {
+        this.showClickMarker(pointEvent.clientX, pointEvent.clientY);
+        this.addCalibrationPoint(pointEvent, coords);
+        this.cancelGesture();
+        return;
+      }
+
+      if (durationMs >= 380) {
+        this.showClickMarker(pointEvent.clientX, pointEvent.clientY);
+        this.sendTouchEvent('longPress', {
+          x: coords.x,
+          y: coords.y,
+          durationMs: Math.max(380, Math.min(1200, durationMs))
+        });
+        this.cancelPendingTap();
+      } else {
+        this.queueTap(coords, pointEvent);
       }
 
       this.isDraggingVideo = false;
-      event.preventDefault();
+    },
+
+    queueTap(coords, pointEvent) {
+      const now = Date.now();
+      const maxInterval = 260;
+      const maxDistance = 28;
+
+      if (this.pendingTap) {
+        const isNear = Math.hypot(coords.x - this.pendingTap.x, coords.y - this.pendingTap.y) <= maxDistance;
+        const isFast = now - this.pendingTap.timestamp <= maxInterval;
+        if (isNear && isFast) {
+          this.showClickMarker(pointEvent.clientX, pointEvent.clientY);
+          this.cancelPendingTap();
+          this.sendTouchEvent('doubleClick', { x: coords.x, y: coords.y });
+          return;
+        }
+      }
+
+      this.cancelPendingTap();
+      this.pendingTap = {
+        x: coords.x,
+        y: coords.y,
+        clientX: pointEvent.clientX,
+        clientY: pointEvent.clientY,
+        timestamp: now
+      };
+      this.pendingSingleTapTimer = setTimeout(() => {
+        if (!this.pendingTap) {
+          return;
+        }
+        this.showClickMarker(this.pendingTap.clientX, this.pendingTap.clientY);
+        this.sendTouchEvent('click', { x: this.pendingTap.x, y: this.pendingTap.y });
+        this.showCoordinateInfo(
+          { clientX: this.pendingTap.clientX, clientY: this.pendingTap.clientY },
+          { x: this.pendingTap.x, y: this.pendingTap.y }
+        );
+        this.pendingTap = null;
+        this.pendingSingleTapTimer = null;
+      }, maxInterval);
+    },
+
+    cancelPendingTap() {
+      if (this.pendingSingleTapTimer) {
+        clearTimeout(this.pendingSingleTapTimer);
+        this.pendingSingleTapTimer = null;
+      }
+      this.pendingTap = null;
+    },
+
+    cancelGesture() {
+      this.isDraggingVideo = false;
     },
 
     /** 显示点击位置的可视化标记 */
@@ -1810,69 +1837,35 @@ export default {
 
       // 获取视频元素的边界矩形
       const rect = video.getBoundingClientRect();
-      
-      // 获取点击在视频元素上的相对坐标
       const clickX = event.clientX - rect.left;
       const clickY = event.clientY - rect.top;
-
-      // 获取视频显示区域的尺寸
-      const videoDisplayWidth = rect.width;
-      const videoDisplayHeight = rect.height;
+      const contentRect = this.getVideoContentRect();
 
       if (this.debugMode) {
         console.log(`=== 坐标转换调试 ===`);
         console.log(`点击位置: (${clickX.toFixed(1)}, ${clickY.toFixed(1)})`);
-        console.log(`视频显示区域: ${videoDisplayWidth}x${videoDisplayHeight}`);
+        console.log(`视频显示区域: ${rect.width}x${rect.height}`);
         console.log(`设备分辨率: ${deviceWidth}x${deviceHeight}`);
         if (this.videoResolution) {
           console.log(`视频传输分辨率: ${this.videoResolution.width}x${this.videoResolution.height}`);
         }
       }
 
-      // 关键修复：直接使用设备分辨率计算宽高比，不依赖视频流尺寸
-      // 这样确保坐标转换始终基于设备的真实分辨率
-      const deviceAspectRatio = deviceWidth / deviceHeight;
-      const displayAspectRatio = videoDisplayWidth / videoDisplayHeight;
-
-      let videoContentWidth, videoContentHeight, offsetX, offsetY;
-
-      // 计算视频内容在显示区域中的实际尺寸和位置（object-fit: contain 效果）
-      if (deviceAspectRatio > displayAspectRatio) {
-        // 设备更宽，以显示宽度为准，高度按比例缩放
-        videoContentWidth = videoDisplayWidth;
-        videoContentHeight = videoDisplayWidth / deviceAspectRatio;
-        offsetX = 0;
-        offsetY = (videoDisplayHeight - videoContentHeight) / 2;
-      } else {
-        // 设备更高，以显示高度为准，宽度按比例缩放
-        videoContentHeight = videoDisplayHeight;
-        videoContentWidth = videoDisplayHeight * deviceAspectRatio;
-        offsetX = (videoDisplayWidth - videoContentWidth) / 2;
-        offsetY = 0;
-      }
-
       if (this.debugMode) {
-        console.log(`视频内容区域: ${videoContentWidth.toFixed(1)}x${videoContentHeight.toFixed(1)}`);
-        console.log(`内容偏移: (${offsetX.toFixed(1)}, ${offsetY.toFixed(1)})`);
+        console.log(`视频内容区域: ${contentRect.width.toFixed(1)}x${contentRect.height.toFixed(1)}`);
+        console.log(`内容偏移: (${contentRect.offsetX.toFixed(1)}, ${contentRect.offsetY.toFixed(1)})`);
       }
 
-      // 检查点击是否在视频内容区域内
-      if (clickX < offsetX || clickX > offsetX + videoContentWidth ||
-          clickY < offsetY || clickY > offsetY + videoContentHeight) {
+      if (clickX < contentRect.offsetX || clickX > contentRect.offsetX + contentRect.width ||
+          clickY < contentRect.offsetY || clickY > contentRect.offsetY + contentRect.height) {
         console.warn('点击在视频内容区域外（黑边区域）');
         return null;
       }
 
-      // 计算在视频内容中的相对位置（0-1之间）
-      const relativeX = (clickX - offsetX) / videoContentWidth;
-      const relativeY = (clickY - offsetY) / videoContentHeight;
-
-      // 关键修复：直接映射到设备原始分辨率
-      // 这样确保不论视频流是什么分辨率，都能正确映射到设备坐标
-      const deviceX = Math.round(relativeX * deviceWidth);
-      const deviceY = Math.round(relativeY * deviceHeight);
-
-      // 边界检查 - 确保坐标在有效范围内
+      const relativeX = (clickX - contentRect.offsetX) / contentRect.width;
+      const relativeY = (clickY - contentRect.offsetY) / contentRect.height;
+      const deviceX = Math.round(relativeX * (deviceWidth - 1));
+      const deviceY = Math.round(relativeY * (deviceHeight - 1));
       const finalX = Math.max(0, Math.min(deviceWidth - 1, deviceX));
       const finalY = Math.max(0, Math.min(deviceHeight - 1, deviceY));
 
@@ -1896,30 +1889,60 @@ export default {
       return { x: finalX, y: finalY };
     },
 
+    getVideoContentRect() {
+      const video = this.$refs.remoteVideo;
+      if (!video) {
+        return { width: 0, height: 0, offsetX: 0, offsetY: 0 };
+      }
+
+      const rect = video.getBoundingClientRect();
+      const sourceWidth = video.videoWidth || (this.videoResolution && this.videoResolution.width) || (this.deviceResolution && this.deviceResolution.width) || rect.width;
+      const sourceHeight = video.videoHeight || (this.videoResolution && this.videoResolution.height) || (this.deviceResolution && this.deviceResolution.height) || rect.height;
+
+      if (!sourceWidth || !sourceHeight || !rect.width || !rect.height) {
+        return { width: rect.width, height: rect.height, offsetX: 0, offsetY: 0 };
+      }
+
+      const sourceAspectRatio = sourceWidth / sourceHeight;
+      const displayAspectRatio = rect.width / rect.height;
+
+      if (sourceAspectRatio > displayAspectRatio) {
+        return {
+          width: rect.width,
+          height: rect.width / sourceAspectRatio,
+          offsetX: 0,
+          offsetY: (rect.height - rect.width / sourceAspectRatio) / 2
+        };
+      }
+
+      return {
+        width: rect.height * sourceAspectRatio,
+        height: rect.height,
+        offsetX: (rect.width - rect.height * sourceAspectRatio) / 2,
+        offsetY: 0
+      };
+    },
+
     /** 发送触摸事件到设备 */
-    sendTouchEvent(action, x, y, x2 = null, y2 = null) {
-      if (!this.mqttClient) {
-        console.warn('MQTT未连接，无法发送触摸事件');
+    sendTouchEvent(action, payload) {
+      if (!this.mqttClient && !(this.webrtcManager && this.webrtcManager.isDataChannelOpen())) {
+        console.warn('控制通道未连接，无法发送触摸事件');
         return;
       }
 
       const touchMessage = {
         type: 'control',
         action: action,
-        x: x,
-        y: y,
         deviceName: this.deviceName,
-        from: 'frontend'
+        from: 'frontend',
+        ...payload
       };
 
-      // 如果是滑动事件，添加结束坐标
-      if (action === 'swipe' && x2 !== null && y2 !== null) {
-        touchMessage.x1 = x;
-        touchMessage.y1 = y;
-        touchMessage.x2 = x2;
-        touchMessage.y2 = y2;
-        delete touchMessage.x;
-        delete touchMessage.y;
+      if (this.webrtcManager && this.webrtcManager.isDataChannelOpen()) {
+        const sent = this.webrtcManager.sendMessage(touchMessage);
+        if (sent) {
+          return;
+        }
       }
 
       const topic = `control/${this.username}/${this.deviceName}`;

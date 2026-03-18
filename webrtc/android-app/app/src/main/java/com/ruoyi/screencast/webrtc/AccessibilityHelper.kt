@@ -21,14 +21,32 @@ object AccessibilityHelper {
         Log.d(TAG, "执行点击操作: ($x, $y)")
         service?.performClickAt(x, y)
     }
+
+    fun performDoubleClick(x: Float, y: Float) {
+        if (service == null) {
+            Log.w(TAG, "无障碍服务未启用，无法执行双击操作")
+            return
+        }
+        Log.d(TAG, "执行双击操作: ($x, $y)")
+        service?.performDoubleClickAt(x, y)
+    }
+
+    fun performLongPress(x: Float, y: Float, durationMs: Long) {
+        if (service == null) {
+            Log.w(TAG, "无障碍服务未启用，无法执行长按操作")
+            return
+        }
+        Log.d(TAG, "执行长按操作: ($x, $y), duration=${durationMs}ms")
+        service?.performLongPressAt(x, y, durationMs)
+    }
     
-    fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float) {
+    fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long) {
         if (service == null) {
             Log.w(TAG, "无障碍服务未启用，无法执行滑动操作")
             return
         }
-        Log.d(TAG, "执行滑动操作: ($x1, $y1) -> ($x2, $y2)")
-        service?.performSwipeGesture(x1, y1, x2, y2)
+        Log.d(TAG, "执行滑动操作: ($x1, $y1) -> ($x2, $y2), duration=${durationMs}ms")
+        service?.performSwipeGesture(x1, y1, x2, y2, durationMs)
     }
     
     fun performBack() {

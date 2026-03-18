@@ -120,6 +120,10 @@ class ScreenCaptureService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = getString(R.string.notification_channel_desc)
+                setSound(null, null)
+                enableVibration(false)
+                enableLights(false)
+                setShowBadge(false)
             }
             
             val notificationManager = getSystemService(NotificationManager::class.java)
@@ -139,6 +143,11 @@ class ScreenCaptureService : Service() {
             .setContentText(getString(R.string.notification_text))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 }

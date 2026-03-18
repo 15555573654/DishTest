@@ -57,6 +57,10 @@ export default class WebRTCManager {
       onIceCandidate: null,
       onError: null
     };
+
+    this.lastIceStatsSnapshotAt = 0;
+    this.iceCandidateStats = this.createEmptyIceStats();
+    this.relayCheckTimer = null;
   }
   
   /**
@@ -83,13 +87,17 @@ export default class WebRTCManager {
   async createPeerConnection() {
     const configuration = {
       iceServers: this.iceServers,
+      iceCandidatePoolSize: 6,
       // 优化 ICE 候选策略
       iceTransportPolicy: 'all', // 使用所有可用的候选
       bundlePolicy: 'max-bundle', // 最大化复用传输
-      rtcpMuxPolicy: 'require' // 要求 RTCP 复用
+      rtcpMuxPolicy: 'require',
+      sdpSemantics: 'unified-plan'
     };
     
     this.peerConnection = new RTCPeerConnection(configuration);
+    this.resetIceDebugState();
+    console.log('>>> ICE服务器配置:', this.iceServers.map(server => server.urls).flat().join(', '));
     
     // 添加视频接收器，配置优化参数
     console.log('>>> 添加视频接收器...');
@@ -118,7 +126,9 @@ export default class WebRTCManager {
     // ICE 候选事件
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('>>> 生成ICE候选，准备发送');
+        const description = this.describeIceCandidate(event.candidate);
+        this.recordIceCandidate('local', event.candidate);
+        console.log('>>> 生成ICE候选，准备发送:', description);
         this.sendSignaling({
           type: 'ice-candidate',
           deviceName: this.deviceName,
@@ -127,7 +137,24 @@ export default class WebRTCManager {
         });
       } else {
         console.log('>>> ICE候选收集完成');
+        this.logIceCandidateSummary('local-gather-complete');
+        this.warnIfRelayMissing('local-gather-complete');
       }
+    };
+
+    this.peerConnection.onicegatheringstatechange = () => {
+      console.log('>>> ICE收集状态变化:', this.peerConnection.iceGatheringState);
+      if (this.peerConnection.iceGatheringState === 'gathering') {
+        this.scheduleRelayCheck();
+      }
+      if (this.peerConnection.iceGatheringState === 'complete') {
+        this.logIceCandidateSummary('ice-gathering-complete');
+        this.warnIfRelayMissing('ice-gathering-complete');
+      }
+    };
+
+    this.peerConnection.onsignalingstatechange = () => {
+      console.log('>>> 信令状态变化:', this.peerConnection.signalingState);
     };
     
     // 连接状态变化
@@ -146,6 +173,7 @@ export default class WebRTCManager {
           break;
         case 'connected':
           console.log('✓ WebRTC连接成功！');
+          this.logIceDiagnostics('peer-connected');
           break;
         case 'disconnected':
           console.warn('⚠️ WebRTC连接已断开');
@@ -158,6 +186,7 @@ export default class WebRTCManager {
           break;
         case 'failed':
           console.error('✗ WebRTC连接失败');
+          this.logIceDiagnostics('peer-failed');
           if (this.callbacks.onError) {
             this.callbacks.onError('WebRTC连接失败');
           }
@@ -180,14 +209,17 @@ export default class WebRTCManager {
           break;
         case 'connected':
           console.log('✓ ICE连接成功！');
+          this.logIceDiagnostics('ice-connected');
           // ICE连接成功，通常意味着WebRTC连接即将成功
           break;
         case 'completed':
           console.log('✓ ICE连接完成！');
+          this.logIceDiagnostics('ice-completed');
           break;
         case 'failed':
           console.error('✗ ICE连接失败 - 可能是NAT/防火墙问题');
           console.error('建议检查：1) 网络防火墙设置 2) STUN/TURN服务器配置 3) NAT类型');
+          this.logIceDiagnostics('ice-failed');
           
           // ICE连接失败时，尝试重新建立连接
           console.log('🔄 ICE连接失败，5秒后尝试重新建立连接...');
@@ -204,6 +236,7 @@ export default class WebRTCManager {
           break;
         case 'disconnected':
           console.warn('⚠️ ICE连接已断开');
+          this.logIceDiagnostics('ice-disconnected');
           // ICE断开可能是临时的，等待一段时间看是否恢复
           setTimeout(() => {
             if (this.peerConnection && this.peerConnection.iceConnectionState === 'disconnected') {
@@ -554,7 +587,8 @@ export default class WebRTCManager {
    * 处理 ICE 候选
    */
   async handleIceCandidate(candidate) {
-    console.log('>>> 添加远程ICE候选');
+    this.recordIceCandidate('remote', candidate);
+    console.log('>>> 添加远程ICE候选:', this.describeIceCandidate(candidate));
     if (this.peerConnection) {
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       console.log('✓ ICE候选添加成功');
@@ -730,6 +764,11 @@ export default class WebRTCManager {
    * 清理资源
    */
   cleanup() {
+    if (this.relayCheckTimer) {
+      clearTimeout(this.relayCheckTimer);
+      this.relayCheckTimer = null;
+    }
+
     if (this.dataChannel) {
       this.dataChannel.close();
       this.dataChannel = null;
@@ -746,6 +785,127 @@ export default class WebRTCManager {
     }
     
     console.log('✓ WebRTC 资源已清理');
+  }
+
+  describeIceCandidate(candidate) {
+    if (!candidate) {
+      return 'null';
+    }
+
+    const raw = candidate.candidate || '';
+    const candidateType = raw.match(/\btyp\s+([a-zA-Z0-9]+)/)?.[1] || candidate.type || 'unknown';
+    const protocol = raw.match(/\b(udp|tcp)\b/i)?.[1]?.toLowerCase() || candidate.protocol || 'unknown';
+    const address = candidate.address || raw.split(' ')[4] || 'unknown';
+    const port = candidate.port || raw.split(' ')[5] || 'unknown';
+    const tcpType = raw.match(/\btcptype\s+([a-zA-Z0-9]+)/)?.[1];
+    return `type=${candidateType}, protocol=${protocol}, address=${address}, port=${port}${tcpType ? `, tcpType=${tcpType}` : ''}`;
+  }
+
+  async logIceDiagnostics(reason) {
+    if (!this.peerConnection) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastIceStatsSnapshotAt < 1500) {
+      return;
+    }
+    this.lastIceStatsSnapshotAt = now;
+
+    try {
+      const stats = await this.peerConnection.getStats();
+      let selectedPair = null;
+      const candidates = new Map();
+
+      stats.forEach((report) => {
+        if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+          candidates.set(report.id, report);
+        }
+        if (report.type === 'candidate-pair') {
+          const isSelected = report.selected || report.nominated || report.state === 'succeeded';
+          if (!selectedPair && isSelected) {
+            selectedPair = report;
+          }
+        }
+      });
+
+      if (!selectedPair) {
+        console.warn(`[ICE diagnostics:${reason}] 未找到已选中的 candidate pair`);
+        return;
+      }
+
+      const local = candidates.get(selectedPair.localCandidateId);
+      const remote = candidates.get(selectedPair.remoteCandidateId);
+      console.log(`[ICE diagnostics:${reason}] pair state=${selectedPair.state}, nominated=${selectedPair.nominated}, writable=${selectedPair.writable}, readable=${selectedPair.readable}, currentRtt=${selectedPair.currentRoundTripTime || 0}`);
+      if (local) {
+        console.log(`[ICE diagnostics:${reason}] local => type=${local.candidateType}, protocol=${local.protocol}, address=${local.address || local.ip}:${local.port}, networkType=${local.networkType || 'unknown'}`);
+      }
+      if (remote) {
+        console.log(`[ICE diagnostics:${reason}] remote => type=${remote.candidateType}, protocol=${remote.protocol}, address=${remote.address || remote.ip}:${remote.port}`);
+      }
+      if (!local || !remote) {
+        console.log(`[ICE diagnostics:${reason}] pair ids => local=${selectedPair.localCandidateId}, remote=${selectedPair.remoteCandidateId}`);
+      }
+    } catch (error) {
+      console.warn(`[ICE diagnostics:${reason}] getStats失败:`, error);
+    }
+  }
+
+  createEmptyIceStats() {
+    return {
+      local: { host: 0, srflx: 0, relay: 0, prflx: 0, unknown: 0 },
+      remote: { host: 0, srflx: 0, relay: 0, prflx: 0, unknown: 0 }
+    };
+  }
+
+  resetIceDebugState() {
+    this.iceCandidateStats = this.createEmptyIceStats();
+    if (this.relayCheckTimer) {
+      clearTimeout(this.relayCheckTimer);
+      this.relayCheckTimer = null;
+    }
+  }
+
+  recordIceCandidate(side, candidate) {
+    const raw = candidate?.candidate || '';
+    const candidateType = raw.match(/\btyp\s+([a-zA-Z0-9]+)/)?.[1] || candidate?.type || 'unknown';
+    const bucket = this.iceCandidateStats[side];
+    if (!bucket) {
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(bucket, candidateType)) {
+      bucket[candidateType] += 1;
+    } else {
+      bucket.unknown += 1;
+    }
+    this.logIceCandidateSummary(`${side}-candidate-${candidateType}`);
+  }
+
+  logIceCandidateSummary(reason) {
+    const local = this.iceCandidateStats.local;
+    const remote = this.iceCandidateStats.remote;
+    console.log(`[ICE summary:${reason}] local host=${local.host}, srflx=${local.srflx}, relay=${local.relay}, prflx=${local.prflx}, unknown=${local.unknown}; remote host=${remote.host}, srflx=${remote.srflx}, relay=${remote.relay}, prflx=${remote.prflx}, unknown=${remote.unknown}`);
+  }
+
+  warnIfRelayMissing(reason) {
+    const { local, remote } = this.iceCandidateStats;
+    if (local.relay === 0) {
+      console.warn(`[ICE summary:${reason}] 本地尚未获得 relay 候选`);
+    }
+    if (remote.relay === 0) {
+      console.warn(`[ICE summary:${reason}] 远端尚未获得 relay 候选`);
+    }
+  }
+
+  scheduleRelayCheck() {
+    if (this.relayCheckTimer) {
+      clearTimeout(this.relayCheckTimer);
+    }
+    this.relayCheckTimer = setTimeout(() => {
+      this.logIceCandidateSummary('relay-check-timeout');
+      this.warnIfRelayMissing('relay-check-timeout');
+      this.relayCheckTimer = null;
+    }, 4000);
   }
   
   /**
