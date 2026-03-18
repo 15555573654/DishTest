@@ -27,9 +27,6 @@ class WebRTCManager(private val context: Context) {
     
     private var pendingOffer: SessionDescription? = null
     
-    // 定期刷新机制，防止静态画面黑屏
-    private var refreshTimer: android.os.Handler? = null
-    private var refreshRunnable: Runnable? = null
     
     // 保存屏幕捕获的Intent，用于重新创建ScreenCapturer
     private var screenCaptureIntent: Intent? = null
@@ -160,8 +157,6 @@ class WebRTCManager(private val context: Context) {
             logCallback?.invoke("✅ 视频捕获已启动: ${targetWidth}x${targetHeight}@30fps (标清模式)")
             statusCallback?.invoke("捕获中")
             
-            // 启动定期刷新机制，防止静态画面黑屏
-            startPeriodicRefresh()
             
             // 如果有待处理的 offer，现在处理它
             pendingOffer?.let { offer ->
@@ -184,7 +179,6 @@ class WebRTCManager(private val context: Context) {
             logCallback?.invoke("🛑 停止现有屏幕捕获...")
             
             // 停止定期刷新
-            stopPeriodicRefresh()
             
             videoCapturer?.stopCapture()
             videoCapturer?.dispose()
@@ -206,71 +200,6 @@ class WebRTCManager(private val context: Context) {
         } catch (e: Exception) {
             logCallback?.invoke("⚠️ 清理捕获资源时出错: ${e.message}")
         }
-    }
-    
-    /** 启动定期刷新机制，防止静态画面黑屏 */
-    private fun startPeriodicRefresh() {
-        stopPeriodicRefresh() // 先停止现有的
-        
-        refreshTimer = android.os.Handler(android.os.Looper.getMainLooper())
-        refreshRunnable = object : Runnable {
-            override fun run() {
-                try {
-                    // 每60秒进行一次轻量级刷新，减少频率以避免MediaProjection问题
-                    videoCapturer?.let { capturer ->
-                        if (localVideoTrack != null) {
-                            logCallback?.invoke("🔄 执行定期刷新，防止画面黑屏")
-                            
-                            // 使用最轻量级的刷新方式：仅通过changeCaptureFormat微调参数
-                            try {
-                                if (capturer is org.webrtc.ScreenCapturerAndroid) {
-                                    val displayMetrics = context.resources.displayMetrics
-                                    val screenWidth = displayMetrics.widthPixels
-                                    val screenHeight = displayMetrics.heightPixels
-                                    val targetWidth = 720
-                                    val targetHeight = (screenHeight * 720.0 / screenWidth).toInt()
-                                    
-                                    // 通过微调帧率来触发刷新（29fps -> 30fps）
-                                    capturer.changeCaptureFormat(targetWidth, targetHeight, 29)
-                                    
-                                    // 200ms后恢复正常帧率
-                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        try {
-                                            capturer.changeCaptureFormat(targetWidth, targetHeight, 30)
-                                            logCallback?.invoke("✓ 定期刷新完成")
-                                        } catch (e: Exception) {
-                                            logCallback?.invoke("⚠️ 恢复帧率时出错: ${e.message}")
-                                        }
-                                    }, 200)
-                                } else {
-                                    logCallback?.invoke("⚠️ 不支持的捕获器类型，跳过定期刷新")
-                                }
-                            } catch (e: Exception) {
-                                logCallback?.invoke("⚠️ 定期刷新时出错: ${e.message}")
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    logCallback?.invoke("⚠️ 定期刷新时出错: ${e.message}")
-                }
-                
-                // 安排下次刷新（60秒后，减少频率）
-                refreshTimer?.postDelayed(this, 60000)
-            }
-        }
-        
-        // 首次刷新在60秒后执行
-        refreshTimer?.postDelayed(refreshRunnable!!, 60000)
-        logCallback?.invoke("✓ 定期刷新机制已启动（每60秒，轻量级模式）")
-    }
-    
-    /** 停止定期刷新机制 */
-    private fun stopPeriodicRefresh() {
-        refreshRunnable?.let { runnable ->
-            refreshTimer?.removeCallbacks(runnable)
-        }
-        refreshTimer = null
-        refreshRunnable = null
     }
     
     private fun createPeerConnectionFactory(): PeerConnectionFactory {
@@ -953,7 +882,6 @@ class WebRTCManager(private val context: Context) {
     fun release() {
         try {
             // 停止定期刷新
-            stopPeriodicRefresh()
             
             videoCapturer?.stopCapture()
             videoCapturer?.dispose()

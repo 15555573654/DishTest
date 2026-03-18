@@ -244,10 +244,6 @@ export default {
       // 调试模式
       debugMode: false,
       
-      // 黑屏检测
-      blackScreenDetection: null,
-      lastFrameTime: 0,
-      frameCheckInterval: null,
       
       // 设备真实分辨率（从Android端获取）
       deviceResolution: null,
@@ -421,8 +417,6 @@ export default {
                   // 启动统计信息监控
                   this.startStatsMonitoring();
                   
-                  // 启动黑屏检测
-                  this.startBlackScreenDetection(video);
                 } catch (err) {
                   console.error('✗ 视频播放失败:', err);
                   
@@ -654,7 +648,6 @@ export default {
         this.webrtcManager.stop();
       }
       this.stopStatsMonitoring();
-      this.stopBlackScreenDetection(); // 停止黑屏检测
       this.connectionStatus = 'disconnected';
       this.isStreaming = false;
       this.statusText = '已停止';
@@ -871,134 +864,6 @@ export default {
       }
     },
 
-    /** 启动黑屏检测 */
-    startBlackScreenDetection(videoElement) {
-      this.stopBlackScreenDetection(); // 先停止现有的检测
-      
-      console.log('🔍 启动黑屏检测机制');
-      
-      // 创建canvas用于检测画面变化
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      let lastImageData = null;
-      let unchangedFrameCount = 0;
-      
-      this.frameCheckInterval = setInterval(() => {
-        if (!this.isStreaming || !videoElement.videoWidth || !videoElement.videoHeight) {
-          return;
-        }
-        
-        try {
-          // 设置canvas尺寸（使用较小的尺寸以提高性能）
-          const checkWidth = 160;
-          const checkHeight = 90;
-          canvas.width = checkWidth;
-          canvas.height = checkHeight;
-          
-          // 绘制当前帧
-          ctx.drawImage(videoElement, 0, 0, checkWidth, checkHeight);
-          const currentImageData = ctx.getImageData(0, 0, checkWidth, checkHeight);
-          
-          if (lastImageData) {
-            // 比较当前帧和上一帧
-            let diffPixels = 0;
-            const threshold = 10; // 像素差异阈值
-            
-            for (let i = 0; i < currentImageData.data.length; i += 4) {
-              const rDiff = Math.abs(currentImageData.data[i] - lastImageData.data[i]);
-              const gDiff = Math.abs(currentImageData.data[i + 1] - lastImageData.data[i + 1]);
-              const bDiff = Math.abs(currentImageData.data[i + 2] - lastImageData.data[i + 2]);
-              
-              if (rDiff > threshold || gDiff > threshold || bDiff > threshold) {
-                diffPixels++;
-              }
-            }
-            
-            const changePercentage = (diffPixels / (checkWidth * checkHeight)) * 100;
-            
-            if (changePercentage < 0.1) { // 如果变化小于0.1%
-              unchangedFrameCount++;
-              
-              if (unchangedFrameCount >= 20) { // 连续20次检测（约20秒）没有变化
-                console.warn('🚨 检测到可能的黑屏或静止画面，尝试刷新连接');
-                this.handlePotentialBlackScreen();
-                unchangedFrameCount = 0; // 重置计数器
-              }
-            } else {
-              unchangedFrameCount = 0; // 有变化，重置计数器
-            }
-          }
-          
-          lastImageData = currentImageData;
-        } catch (err) {
-          console.warn('黑屏检测时出错:', err);
-        }
-      }, 1000); // 每秒检测一次
-    },
-
-    /** 停止黑屏检测 */
-    stopBlackScreenDetection() {
-      if (this.frameCheckInterval) {
-        clearInterval(this.frameCheckInterval);
-        this.frameCheckInterval = null;
-        console.log('🔍 黑屏检测已停止');
-      }
-    },
-
-    /** 处理可能的黑屏情况 */
-    handlePotentialBlackScreen() {
-      console.log('🔄 处理黑屏情况：发送刷新请求到设备');
-      
-      // 发送刷新请求到Android端
-      if (this.mqttClient) {
-        const refreshMessage = {
-          type: 'control',
-          action: 'refresh-video',
-          deviceName: this.deviceName,
-          from: 'frontend',
-          timestamp: Date.now()
-        };
-
-        const topic = `control/${this.username}/${this.deviceName}`;
-        
-        this.mqttClient.publish(topic, JSON.stringify(refreshMessage), { qos: 1 }, (err) => {
-          if (err) {
-            console.error('发送视频刷新请求失败:', err);
-          } else {
-            console.log('✓ 已发送视频刷新请求到设备');
-          }
-        });
-      }
-      
-      // 同时尝试Web端的恢复措施
-      this.attemptVideoRecovery();
-    },
-
-    /** 尝试视频恢复 */
-    attemptVideoRecovery() {
-      const video = this.$refs.remoteVideo;
-      if (!video || !video.srcObject) return;
-      
-      console.log('🔄 尝试Web端视频恢复');
-      
-      try {
-        // 方法1: 跳到最新帧
-        if (video.buffered && video.buffered.length > 0) {
-          video.currentTime = video.buffered.end(0) - 0.01;
-        }
-        
-        // 方法2: 重新播放
-        video.pause();
-        setTimeout(() => {
-          video.play().catch(err => {
-            console.warn('重新播放失败:', err);
-          });
-        }, 100);
-        
-      } catch (err) {
-        console.warn('视频恢复尝试失败:', err);
-      }
-    },
 
     /** 强制重新连接 */
     forceReconnect() {
@@ -1338,7 +1203,6 @@ export default {
     /** 清理资源 */
     cleanup() {
       this.stopStatsMonitoring();
-      this.stopBlackScreenDetection(); // 停止黑屏检测
 
       if (this.webrtcManager) {
         this.webrtcManager.cleanup();

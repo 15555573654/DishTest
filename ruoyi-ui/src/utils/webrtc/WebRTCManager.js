@@ -42,11 +42,6 @@ export default class WebRTCManager {
     // 状态
     this.connectionState = 'disconnected'; // disconnected, connecting, connected
     
-    // 自适应质量调整
-    this.qualityAdjustmentInterval = null;
-    this.poorQualityCount = 0; // 连续检测到质量差的次数
-    this.QUALITY_THRESHOLD = 3; // 需要连续 3 次检测到质量差才降质
-    
     // 视频约束配置（用于重新协商）
     this.videoConstraints = {
       width: 1920,
@@ -376,9 +371,6 @@ export default class WebRTCManager {
       
       console.log('📤 发送给设备的视频约束:', JSON.stringify(this.videoConstraints, null, 2));
       
-      // 禁用自适应质量调整 - Android 端控制分辨率，Web 端无法动态调整
-      // this.startQualityAdjustment();
-      console.log('ℹ️ 自适应质量调整已禁用，由设备端控制视频质量');
       
       return true;
     } catch (error) {
@@ -668,103 +660,6 @@ export default class WebRTCManager {
   }
   
   /**
-   * 启动自适应质量调整
-   */
-  startQualityAdjustment() {
-    if (this.qualityAdjustmentInterval) {
-      clearInterval(this.qualityAdjustmentInterval);
-    }
-    
-    // 延迟 30 秒后再开始检查，给连接稳定的时间
-    setTimeout(() => {
-      // 每 10 秒检查一次网络状况并调整质量（之前是 5 秒）
-      this.qualityAdjustmentInterval = setInterval(() => {
-        this.adaptiveQualityAdjustment();
-      }, 10000);
-      console.log('✓ 自适应质量调整已启动（30秒预热后）');
-    }, 30000);
-  }
-  
-  /**
-   * 停止自适应质量调整
-   */
-  stopQualityAdjustment() {
-    if (this.qualityAdjustmentInterval) {
-      clearInterval(this.qualityAdjustmentInterval);
-      this.qualityAdjustmentInterval = null;
-    }
-  }
-  
-  /**
-   * 自适应调整视频质量
-   * 根据网络状况自动调整视频参数
-   */
-  async adaptiveQualityAdjustment() {
-    if (!this.peerConnection) return;
-    
-    try {
-      const stats = await this.peerConnection.getStats();
-      let hasQualityIssue = false;
-      let newSettings = {};
-      
-      stats.forEach(report => {
-        if (report.type === 'inbound-rtp' && report.kind === 'video') {
-          // 检查丢包率 - 提高阈值到 15%（之前是 5%）
-          if (report.packetsLost && report.packetsReceived) {
-            const totalPackets = report.packetsLost + report.packetsReceived;
-            const packetLoss = (report.packetsLost / totalPackets) * 100;
-            
-            if (packetLoss > 15) {
-              // 丢包率高
-              hasQualityIssue = true;
-              newSettings = {
-                width: 1280,
-                height: 720,
-                frameRate: 25
-              };
-              console.log('检测到高丢包率 (' + packetLoss.toFixed(2) + '%)');
-            }
-          }
-        }
-        
-        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-          // 检查 RTT - 提高阈值到 500ms（之前是 200ms）
-          if (report.currentRoundTripTime && report.currentRoundTripTime > 0.5) {
-            // RTT 超过 500ms
-            hasQualityIssue = true;
-            newSettings = {
-              width: 1280,
-              height: 720,
-              frameRate: 25
-            };
-            console.log('检测到高延迟 (' + (report.currentRoundTripTime * 1000).toFixed(0) + 'ms)');
-          }
-        }
-      });
-      
-      // 使用计数器机制，避免偶尔的网络波动就降质
-      if (hasQualityIssue) {
-        this.poorQualityCount++;
-        console.log('质量问题计数: ' + this.poorQualityCount + '/' + this.QUALITY_THRESHOLD);
-        
-        if (this.poorQualityCount >= this.QUALITY_THRESHOLD && Object.keys(newSettings).length > 0) {
-          console.log('连续检测到质量问题，适度降低视频质量');
-          this.updateVideoSettings(newSettings);
-          this.poorQualityCount = 0; // 重置计数器
-        }
-      } else {
-        // 网络质量良好，重置计数器
-        if (this.poorQualityCount > 0) {
-          console.log('网络质量恢复，重置计数器');
-          this.poorQualityCount = 0;
-        }
-      }
-    } catch (err) {
-      console.error('自适应质量调整失败:', err);
-    }
-  }
-  
-  /**
    * 强制重置连接
    */
   forceReconnect() {
@@ -827,7 +722,6 @@ export default class WebRTCManager {
    * 停止连接
    */
   stop() {
-    this.stopQualityAdjustment();
     this.cleanup();
     this.connectionState = 'disconnected';
   }
@@ -836,8 +730,6 @@ export default class WebRTCManager {
    * 清理资源
    */
   cleanup() {
-    this.stopQualityAdjustment();
-    
     if (this.dataChannel) {
       this.dataChannel.close();
       this.dataChannel = null;
