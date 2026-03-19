@@ -232,6 +232,9 @@ export default {
       gestureStartY: 0,
       gestureStartClientX: 0,
       gestureStartClientY: 0,
+      gesturePath: [],
+      longPressTimer: null,
+      longPressTriggered: false,
       pendingSingleTapTimer: null,
       pendingTap: null,
       lastPointerType: 'mouse',
@@ -1256,6 +1259,7 @@ export default {
     /** 清理资源 */
     cleanup() {
       this.stopStatsMonitoring();
+      this.cancelLongPressTimer();
       this.cancelPendingTap();
 
       if (this.webrtcManager) {
@@ -1547,6 +1551,7 @@ export default {
         return;
       }
 
+      this.updateGesture(event, 'mouse');
       event.preventDefault();
     },
 
@@ -1576,6 +1581,8 @@ export default {
         return;
       }
 
+      const touch = event.touches[0];
+      this.updateGesture(touch, 'touch');
       event.preventDefault();
     },
 
@@ -1604,9 +1611,68 @@ export default {
       this.gestureStartClientY = pointEvent.clientY;
       this.gestureStartX = coords.x;
       this.gestureStartY = coords.y;
+      this.gesturePath = [{
+        clientX: pointEvent.clientX,
+        clientY: pointEvent.clientY,
+        x: coords.x,
+        y: coords.y,
+        timestamp: this.gestureStartTime
+      }];
+      this.longPressTriggered = false;
+      this.cancelLongPressTimer();
+
+      if (!this.calibrationMode) {
+        this.longPressTimer = setTimeout(() => {
+          if (!this.isDraggingVideo || this.longPressTriggered) {
+            return;
+          }
+          this.longPressTriggered = true;
+          this.cancelPendingTap();
+          this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
+          this.sendTouchEvent('longPress', {
+            x: this.gestureStartX,
+            y: this.gestureStartY,
+            durationMs: 1200
+          });
+        }, 420);
+      }
+    },
+
+    updateGesture(pointEvent, pointerType) {
+      if (!this.isDraggingVideo) {
+        return;
+      }
+
+      const screenDragDistance = Math.hypot(
+        pointEvent.clientX - this.gestureStartClientX,
+        pointEvent.clientY - this.gestureStartClientY
+      );
+      const coords = this.getVideoCoordinates(pointEvent);
+      const deviceDragDistance = coords
+        ? Math.hypot(coords.x - this.gestureStartX, coords.y - this.gestureStartY)
+        : 0;
+      const swipeThreshold = pointerType === 'touch' ? 8 : 12;
+
+      if (coords) {
+        const lastPoint = this.gesturePath[this.gesturePath.length - 1];
+        if (!lastPoint || Math.hypot(coords.x - lastPoint.x, coords.y - lastPoint.y) >= 4) {
+          this.gesturePath.push({
+            clientX: pointEvent.clientX,
+            clientY: pointEvent.clientY,
+            x: coords.x,
+            y: coords.y,
+            timestamp: Date.now()
+          });
+        }
+      }
+
+      if (screenDragDistance >= swipeThreshold || deviceDragDistance >= 18) {
+        this.cancelLongPressTimer();
+      }
     },
 
     finishGesture(pointEvent, pointerType) {
+      this.cancelLongPressTimer();
       const coords = this.getVideoCoordinates(pointEvent);
       if (!coords) {
         this.cancelGesture();
@@ -1625,16 +1691,28 @@ export default {
       const swipeThreshold = pointerType === 'touch' ? 8 : 12;
 
       if (screenDragDistance >= swipeThreshold || deviceDragDistance >= 18) {
-        this.showSwipeTrail(this.gestureStartClientX, this.gestureStartClientY, pointEvent.clientX, pointEvent.clientY);
+        const gesturePath = this.buildGesturePath(pointEvent, coords);
+        const actualDurationMs = Math.max(1, durationMs);
+        const velocityPxPerSecond = Math.round((deviceDragDistance / actualDurationMs) * 1000);
+
+        this.showSwipeTrail(gesturePath);
         if (this.calibrationMode) {
-          this.$message.info('校准模式下不支持滑动，请点击四个角落');
+          this.$message.info('Calibration mode does not send swipe control commands');
         } else {
           this.sendTouchEvent('swipe', {
             x1: this.gestureStartX,
             y1: this.gestureStartY,
             x2: coords.x,
             y2: coords.y,
-            durationMs: Math.max(140, Math.min(900, durationMs))
+            durationMs: Math.max(140, Math.min(900, durationMs)),
+            distancePx: Math.round(screenDragDistance),
+            deviceDistance: Math.round(deviceDragDistance),
+            velocityPxPerSecond,
+            path: gesturePath.map(point => ({
+              x: point.x,
+              y: point.y,
+              t: point.timestamp - this.gestureStartTime
+            }))
           });
         }
         this.cancelGesture();
@@ -1648,16 +1726,21 @@ export default {
         return;
       }
 
-      if (durationMs >= 380) {
-        this.showClickMarker(pointEvent.clientX, pointEvent.clientY);
+      if (this.longPressTriggered) {
+        this.cancelGesture();
+        return;
+      }
+
+      if (durationMs < 380) {
+        this.queueTap(coords, pointEvent);
+      } else {
+        this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
         this.sendTouchEvent('longPress', {
-          x: coords.x,
-          y: coords.y,
+          x: this.gestureStartX,
+          y: this.gestureStartY,
           durationMs: Math.max(380, Math.min(1200, durationMs))
         });
         this.cancelPendingTap();
-      } else {
-        this.queueTap(coords, pointEvent);
       }
 
       this.isDraggingVideo = false;
@@ -1710,7 +1793,34 @@ export default {
       this.pendingTap = null;
     },
 
+    cancelLongPressTimer() {
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
+    },
+
+    buildGesturePath(pointEvent, coords) {
+      const path = [...this.gesturePath];
+      const lastPoint = path[path.length - 1];
+
+      if (!lastPoint || lastPoint.clientX !== pointEvent.clientX || lastPoint.clientY !== pointEvent.clientY) {
+        path.push({
+          clientX: pointEvent.clientX,
+          clientY: pointEvent.clientY,
+          x: coords.x,
+          y: coords.y,
+          timestamp: Date.now()
+        });
+      }
+
+      return path;
+    },
+
     cancelGesture() {
+      this.cancelLongPressTimer();
+      this.longPressTriggered = false;
+      this.gesturePath = [];
       this.isDraggingVideo = false;
     },
 
@@ -1757,56 +1867,79 @@ export default {
     },
 
     /** 显示滑动轨迹的可视化标记 */
-    showSwipeTrail(startClientX, startClientY, endClientX, endClientY) {
-      // 创建滑动轨迹线
-      const trail = document.createElement('div');
-      
-      const deltaX = endClientX - startClientX;
-      const deltaY = endClientY - startClientY;
-      const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
-      
-      trail.style.cssText = `
+    showSwipeTrail(path) {
+      if (!path || path.length < 2) {
+        return;
+      }
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      const points = path.map(point => `${point.clientX},${point.clientY}`).join(' ');
+
+      svg.setAttribute('style', `
         position: fixed;
-        left: ${startClientX}px;
-        top: ${startClientY}px;
-        width: ${length}px;
-        height: 3px;
-        background: linear-gradient(to right, #409EFF, #67C23A);
-        transform-origin: 0 50%;
-        transform: rotate(${angle}deg);
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
         pointer-events: none;
         z-index: 9999;
-        border-radius: 2px;
-        animation: swipeTrail 1.5s ease-out forwards;
-      `;
+        overflow: visible;
+        animation: swipeTrailFade 1.5s ease-out forwards;
+      `);
 
-      // 添加CSS动画
+      polyline.setAttribute('points', points);
+      polyline.setAttribute('fill', 'none');
+      polyline.setAttribute('stroke', 'url(#swipeTrailGradient)');
+      polyline.setAttribute('stroke-width', '4');
+      polyline.setAttribute('stroke-linecap', 'round');
+      polyline.setAttribute('stroke-linejoin', 'round');
+
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+      gradient.setAttribute('id', 'swipeTrailGradient');
+      gradient.setAttribute('x1', '0%');
+      gradient.setAttribute('y1', '0%');
+      gradient.setAttribute('x2', '100%');
+      gradient.setAttribute('y2', '0%');
+
+      const startStop = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      startStop.setAttribute('offset', '0%');
+      startStop.setAttribute('stop-color', '#409EFF');
+      const endStop = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      endStop.setAttribute('offset', '100%');
+      endStop.setAttribute('stop-color', '#67C23A');
+
+      gradient.appendChild(startStop);
+      gradient.appendChild(endStop);
+      defs.appendChild(gradient);
+      svg.appendChild(defs);
+      svg.appendChild(polyline);
+
       if (!document.getElementById('swipeTrailStyle')) {
         const style = document.createElement('style');
         style.id = 'swipeTrailStyle';
         style.textContent = `
-          @keyframes swipeTrail {
-            0% { opacity: 1; transform: rotate(${angle}deg) scaleX(0); }
-            30% { opacity: 1; transform: rotate(${angle}deg) scaleX(1); }
-            100% { opacity: 0; transform: rotate(${angle}deg) scaleX(1); }
+          @keyframes swipeTrailFade {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
           }
         `;
         document.head.appendChild(style);
       }
 
-      document.body.appendChild(trail);
+      document.body.appendChild(svg);
 
-      // 添加起始和结束点标记
-      this.showClickMarker(startClientX, startClientY);
+      const firstPoint = path[0];
+      const lastPoint = path[path.length - 1];
+      this.showClickMarker(firstPoint.clientX, firstPoint.clientY);
       setTimeout(() => {
-        this.showClickMarker(endClientX, endClientY);
+        this.showClickMarker(lastPoint.clientX, lastPoint.clientY);
       }, 300);
 
-      // 1.5秒后移除轨迹
       setTimeout(() => {
-        if (trail.parentNode) {
-          trail.parentNode.removeChild(trail);
+        if (svg.parentNode) {
+          svg.parentNode.removeChild(svg);
         }
       }, 1500);
     },
