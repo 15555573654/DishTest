@@ -13,6 +13,9 @@ class AccessibilityControlService : AccessibilityService() {
     
     private val TAG = "AccessibilityControlService"
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var activeTouchStroke: GestureDescription.StrokeDescription? = null
+    private var activeTouchX: Float? = null
+    private var activeTouchY: Float? = null
     
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -45,6 +48,100 @@ class AccessibilityControlService : AccessibilityService() {
     fun performLongPressAt(x: Float, y: Float, durationMs: Long): Boolean {
         Log.d(TAG, "尝试长按位置: ($x, $y), duration=${durationMs}ms")
         return dispatchTapGesture(x, y, durationMs.coerceIn(350L, 1200L), "长按")
+    }
+
+    fun performTouchDown(x: Float, y: Float): Boolean {
+        releaseHeldTouch()
+
+        val path = Path()
+        path.moveTo(x, y)
+        val stroke = GestureDescription.StrokeDescription(path, 0, 60_000L, true)
+        val gesture = GestureDescription.Builder()
+            .addStroke(stroke)
+            .build()
+
+        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "touchDown completed at ($x, $y)")
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "touchDown cancelled at ($x, $y)")
+                activeTouchStroke = null
+                activeTouchX = null
+                activeTouchY = null
+            }
+        }, null)
+
+        if (dispatched) {
+            activeTouchStroke = stroke
+            activeTouchX = x
+            activeTouchY = y
+        }
+
+        return dispatched
+    }
+
+    fun performTouchMove(x: Float, y: Float): Boolean {
+        val stroke = activeTouchStroke ?: return performTouchDown(x, y)
+        val startX = activeTouchX ?: x
+        val startY = activeTouchY ?: y
+
+        val path = Path()
+        path.moveTo(startX, startY)
+        path.lineTo(x, y)
+        val continuedStroke = stroke.continueStroke(path, 0, 16L, true)
+        val gesture = GestureDescription.Builder()
+            .addStroke(continuedStroke)
+            .build()
+
+        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "touchMove completed to ($x, $y)")
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "touchMove cancelled to ($x, $y)")
+                activeTouchStroke = null
+                activeTouchX = null
+                activeTouchY = null
+            }
+        }, null)
+
+        if (dispatched) {
+            activeTouchStroke = continuedStroke
+            activeTouchX = x
+            activeTouchY = y
+        }
+
+        return dispatched
+    }
+
+    fun releaseHeldTouch(x: Float? = null, y: Float? = null): Boolean {
+        val stroke = activeTouchStroke ?: return false
+        val releaseX = x ?: activeTouchX ?: return false
+        val releaseY = y ?: activeTouchY ?: return false
+
+        val path = Path()
+        path.moveTo(releaseX, releaseY)
+        val gesture = GestureDescription.Builder()
+            .addStroke(stroke.continueStroke(path, 0, 1L, false))
+            .build()
+
+        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "touchUp completed at ($releaseX, $releaseY)")
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "touchUp cancelled at ($releaseX, $releaseY)")
+            }
+        }, null)
+
+        activeTouchStroke = null
+        activeTouchX = null
+        activeTouchY = null
+        return dispatched
     }
 
     private fun dispatchTapGesture(x: Float, y: Float, durationMs: Long, label: String): Boolean {
@@ -110,6 +207,7 @@ class AccessibilityControlService : AccessibilityService() {
     
     override fun onDestroy() {
         super.onDestroy()
+        releaseHeldTouch()
         Log.d(TAG, "无障碍服务已销毁")
         AccessibilityHelper.setService(null)
     }

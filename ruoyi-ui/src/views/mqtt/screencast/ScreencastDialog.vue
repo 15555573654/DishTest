@@ -235,6 +235,10 @@ export default {
       gesturePath: [],
       longPressTimer: null,
       longPressTriggered: false,
+      touchDownSent: false,
+      lastTouchMoveSentAt: 0,
+      lastTouchMoveX: 0,
+      lastTouchMoveY: 0,
       pendingSingleTapTimer: null,
       pendingTap: null,
       lastPointerType: 'mouse',
@@ -1259,6 +1263,7 @@ export default {
     /** 清理资源 */
     cleanup() {
       this.stopStatsMonitoring();
+      this.releaseHeldTouch();
       this.cancelLongPressTimer();
       this.cancelPendingTap();
 
@@ -1620,20 +1625,22 @@ export default {
       }];
       this.longPressTriggered = false;
       this.cancelLongPressTimer();
+      this.touchDownSent = false;
+      this.lastTouchMoveSentAt = this.gestureStartTime;
+      this.lastTouchMoveX = this.gestureStartX;
+      this.lastTouchMoveY = this.gestureStartY;
 
       if (!this.calibrationMode) {
+        this.sendTouchEvent('touchDown', {
+          x: this.gestureStartX,
+          y: this.gestureStartY
+        });
+        this.touchDownSent = true;
         this.longPressTimer = setTimeout(() => {
           if (!this.isDraggingVideo || this.longPressTriggered) {
             return;
           }
           this.longPressTriggered = true;
-          this.cancelPendingTap();
-          this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
-          this.sendTouchEvent('longPress', {
-            x: this.gestureStartX,
-            y: this.gestureStartY,
-            durationMs: 1200
-          });
         }, 420);
       }
     },
@@ -1652,6 +1659,8 @@ export default {
         ? Math.hypot(coords.x - this.gestureStartX, coords.y - this.gestureStartY)
         : 0;
       const swipeThreshold = pointerType === 'touch' ? 8 : 12;
+      const longPressCancelThreshold = pointerType === 'touch' ? 18 : 24;
+      const longPressDeviceCancelThreshold = 32;
 
       if (coords) {
         const lastPoint = this.gesturePath[this.gesturePath.length - 1];
@@ -1666,7 +1675,21 @@ export default {
         }
       }
 
-      if (screenDragDistance >= swipeThreshold || deviceDragDistance >= 18) {
+      if (this.touchDownSent && coords) {
+        const now = Date.now();
+        const movedDistance = Math.hypot(coords.x - this.lastTouchMoveX, coords.y - this.lastTouchMoveY);
+        if (movedDistance >= 3 && now - this.lastTouchMoveSentAt >= 16) {
+          this.sendTouchEvent('touchMove', {
+            x: coords.x,
+            y: coords.y
+          }, false);
+          this.lastTouchMoveSentAt = now;
+          this.lastTouchMoveX = coords.x;
+          this.lastTouchMoveY = coords.y;
+        }
+      }
+
+      if (screenDragDistance >= longPressCancelThreshold || deviceDragDistance >= longPressDeviceCancelThreshold) {
         this.cancelLongPressTimer();
       }
     },
@@ -1692,28 +1715,11 @@ export default {
 
       if (screenDragDistance >= swipeThreshold || deviceDragDistance >= 18) {
         const gesturePath = this.buildGesturePath(pointEvent, coords);
-        const actualDurationMs = Math.max(1, durationMs);
-        const velocityPxPerSecond = Math.round((deviceDragDistance / actualDurationMs) * 1000);
 
+        this.releaseHeldTouch(coords.x, coords.y);
         this.showSwipeTrail(gesturePath);
         if (this.calibrationMode) {
           this.$message.info('Calibration mode does not send swipe control commands');
-        } else {
-          this.sendTouchEvent('swipe', {
-            x1: this.gestureStartX,
-            y1: this.gestureStartY,
-            x2: coords.x,
-            y2: coords.y,
-            durationMs: Math.max(140, Math.min(900, durationMs)),
-            distancePx: Math.round(screenDragDistance),
-            deviceDistance: Math.round(deviceDragDistance),
-            velocityPxPerSecond,
-            path: gesturePath.map(point => ({
-              x: point.x,
-              y: point.y,
-              t: point.timestamp - this.gestureStartTime
-            }))
-          });
         }
         this.cancelGesture();
         return;
@@ -1726,22 +1732,8 @@ export default {
         return;
       }
 
-      if (this.longPressTriggered) {
-        this.cancelGesture();
-        return;
-      }
-
-      if (durationMs < 380) {
-        this.queueTap(coords, pointEvent);
-      } else {
-        this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
-        this.sendTouchEvent('longPress', {
-          x: this.gestureStartX,
-          y: this.gestureStartY,
-          durationMs: Math.max(380, Math.min(1200, durationMs))
-        });
-        this.cancelPendingTap();
-      }
+      this.releaseHeldTouch(coords.x, coords.y);
+      this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
 
       this.isDraggingVideo = false;
     },
@@ -1800,6 +1792,18 @@ export default {
       }
     },
 
+    releaseHeldTouch(x = null, y = null) {
+      if (!this.touchDownSent) {
+        return;
+      }
+
+      this.sendTouchEvent('touchUp', {
+        x: x == null ? this.gestureStartX : x,
+        y: y == null ? this.gestureStartY : y
+      });
+      this.touchDownSent = false;
+    },
+
     buildGesturePath(pointEvent, coords) {
       const path = [...this.gesturePath];
       const lastPoint = path[path.length - 1];
@@ -1818,8 +1822,11 @@ export default {
     },
 
     cancelGesture() {
+      this.releaseHeldTouch();
       this.cancelLongPressTimer();
       this.longPressTriggered = false;
+      this.touchDownSent = false;
+      this.lastTouchMoveSentAt = 0;
       this.gesturePath = [];
       this.isDraggingVideo = false;
     },

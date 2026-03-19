@@ -599,6 +599,9 @@ class WebRTCManager(private val context: Context) {
                 }
                 "click" -> performClick(data.x ?: 0f, data.y ?: 0f)
                 "doubleClick" -> performDoubleClick(data.x ?: 0f, data.y ?: 0f)
+                "touchDown" -> performTouchDown(data.x ?: 0f, data.y ?: 0f)
+                "touchMove" -> performTouchMove(data.x ?: 0f, data.y ?: 0f)
+                "touchUp" -> performTouchUp(data.x, data.y)
                 "longPress" -> performLongPress(data.x ?: 0f, data.y ?: 0f, data.durationMs ?: 500L)
                 "swipe" -> performSwipe(
                     data.x1 ?: 0f,
@@ -753,6 +756,35 @@ class WebRTCManager(private val context: Context) {
         logCallback?.invoke("👆 执行双击: (${point.x}, ${point.y})")
         AccessibilityHelper.performDoubleClick(point.x, point.y)
         sendClickConfirmation(point.x, point.y, "doubleClick")
+    }
+
+    private fun performTouchDown(x: Float, y: Float) {
+        if (!AccessibilityHelper.isServiceConnected()) {
+            logCallback?.invoke("Accessibility unavailable for touchDown")
+            return
+        }
+        val point = clampToDisplay(x, y)
+        logCallback?.invoke("touchDown: (${point.x}, ${point.y})")
+        AccessibilityHelper.performTouchDown(point.x, point.y)
+    }
+
+    private fun performTouchUp(x: Float?, y: Float?) {
+        if (!AccessibilityHelper.isServiceConnected()) {
+            logCallback?.invoke("Accessibility unavailable for touchUp")
+            return
+        }
+        val point = if (x != null && y != null) clampToDisplay(x, y) else null
+        logCallback?.invoke("touchUp: (${point?.x}, ${point?.y})")
+        AccessibilityHelper.performTouchUp(point?.x, point?.y)
+    }
+
+    private fun performTouchMove(x: Float, y: Float) {
+        if (!AccessibilityHelper.isServiceConnected()) {
+            logCallback?.invoke("Accessibility unavailable for touchMove")
+            return
+        }
+        val point = clampToDisplay(x, y)
+        AccessibilityHelper.performTouchMove(point.x, point.y)
     }
 
     private fun performLongPress(x: Float, y: Float, durationMs: Long) {

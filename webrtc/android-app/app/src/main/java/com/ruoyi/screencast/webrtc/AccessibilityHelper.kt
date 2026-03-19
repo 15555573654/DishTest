@@ -31,6 +31,33 @@ object AccessibilityHelper {
         service?.performDoubleClickAt(x, y)
     }
 
+    fun performTouchDown(x: Float, y: Float) {
+        if (service == null) {
+            Log.w(TAG, "AccessibilityService unavailable for touchDown")
+            return
+        }
+        Log.d(TAG, "touchDown at: ($x, $y)")
+        service?.performTouchDown(x, y)
+    }
+
+    fun performTouchUp(x: Float? = null, y: Float? = null) {
+        if (service == null) {
+            Log.w(TAG, "AccessibilityService unavailable for touchUp")
+            return
+        }
+        Log.d(TAG, "touchUp at: ($x, $y)")
+        service?.releaseHeldTouch(x, y)
+    }
+
+    fun performTouchMove(x: Float, y: Float) {
+        if (service == null) {
+            Log.w(TAG, "AccessibilityService unavailable for touchMove")
+            return
+        }
+        Log.d(TAG, "touchMove at: ($x, $y)")
+        service?.performTouchMove(x, y)
+    }
+
     fun performLongPress(x: Float, y: Float, durationMs: Long) {
         if (service == null) {
             Log.w(TAG, "无障碍服务未启用，无法执行长按操作")
