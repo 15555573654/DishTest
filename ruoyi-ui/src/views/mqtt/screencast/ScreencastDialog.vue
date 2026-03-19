@@ -181,8 +181,8 @@ export default {
       showSettings: false,
 
       // 拖动和缩放相关 - 自适应窗口大小
-      dialogWidth: 400,  // 初始宽度，会根据设备分辨率自动调整
-      dialogHeight: 700, // 初始高度，会根据设备分辨率自动调整
+      dialogWidth: 400,
+      dialogHeight: 760,
       isDragging: false,
       isResizing: false,
       resizeType: '',
@@ -285,6 +285,7 @@ export default {
     this.initWebRTC();
     document.addEventListener('mousemove', this.handleMouseMove);
     document.addEventListener('mouseup', this.handleMouseUp);
+    window.addEventListener('resize', this.handleViewportResize);
     
     // 添加键盘事件监听
     document.addEventListener('keydown', this.handleKeyDown);
@@ -310,6 +311,7 @@ export default {
     document.removeEventListener('mousemove', this.handleMouseMove);
     document.removeEventListener('mouseup', this.handleMouseUp);
     document.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('resize', this.handleViewportResize);
     
     // 停止观察大小变化
     if (this.resizeObserver) {
@@ -471,7 +473,36 @@ export default {
 
     /** 检测移动设备 */
     checkMobile() {
-      this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      this.isMobile = window.innerWidth <= 768;
+    },
+
+    getPcDialogHeight() {
+      return Math.min(760, Math.max(620, window.innerHeight - 48));
+    },
+
+    centerDialog() {
+      if (this.isMobile) return;
+
+      this.$nextTick(() => {
+        const dialog = document.querySelector('.screencast-control-dialog');
+        if (!dialog) return;
+
+        const left = Math.max(16, Math.round((window.innerWidth - this.dialogWidth) / 2));
+        const top = Math.max(24, Math.round((window.innerHeight - this.dialogHeight) / 2));
+
+        dialog.style.left = left + 'px';
+        dialog.style.top = top + 'px';
+        dialog.style.margin = '0';
+
+        this.dialogLeft = left;
+        this.dialogTop = top;
+      });
+    },
+
+    handleViewportResize() {
+      this.checkMobile();
+      if (!this.visible) return;
+      this.autoResizeDialog();
     },
 
     /** 弹窗打开时自动连接 */
@@ -483,6 +514,7 @@ export default {
 
       // 初始化弹窗大小
       this.autoResizeDialog();
+      this.centerDialog();
 
       // 订阅反馈消息
       if (this.mqttClient) {
@@ -978,48 +1010,37 @@ export default {
 
     /** 根据视频分辨率自适应调整弹窗大小（以竖屏长度为基准） */
     autoResizeDialog() {
-      // 优先使用从Android端获取的真实设备分辨率
+      if (this.isMobile) {
+        this.dialogWidth = window.innerWidth;
+        this.dialogHeight = window.innerHeight;
+        return;
+      }
+
       let deviceWidth, deviceHeight;
-      
+
       if (this.deviceResolution) {
         deviceWidth = this.deviceResolution.width;
         deviceHeight = this.deviceResolution.height;
-        console.log(`使用真实设备分辨率调整弹窗: ${deviceWidth}x${deviceHeight}`);
       } else if (this.currentStats.resolution) {
         [deviceWidth, deviceHeight] = this.currentStats.resolution.split('x').map(Number);
-        console.log(`使用视频流分辨率调整弹窗: ${deviceWidth}x${deviceHeight}`);
       } else {
-        // 默认使用常见的手机分辨率比例 (9:16)
         deviceWidth = 1080;
         deviceHeight = 1920;
-        console.log(`使用默认分辨率调整弹窗: ${deviceWidth}x${deviceHeight}`);
       }
-      
+
       if (!deviceWidth || !deviceHeight) return;
 
-      // 动态计算合适的弹窗高度（基于屏幕高度的80%，但不超过800px）
-      const maxHeight = Math.min(window.innerHeight * 0.8, 800);
-      const minHeight = 500;
-      const targetHeight = Math.max(minHeight, Math.min(maxHeight, 700));
-      
-      // 使用设备分辨率计算宽高比
+      const targetHeight = this.getPcDialogHeight();
       const deviceAspectRatio = deviceWidth / deviceHeight;
-      
-      // 计算视频显示区域的宽度（减去工具栏等空间）
-      const toolbarWidth = 40; // 右侧工具栏宽度
-      const topToolbarHeight = 50; // 顶部工具栏高度
-      
-      // 视频显示区域的高度
+      const toolbarWidth = 40;
+      const topToolbarHeight = 50;
       const videoDisplayHeight = targetHeight - topToolbarHeight;
-      
-      // 根据设备宽高比计算视频显示区域的宽度
       const videoDisplayWidth = videoDisplayHeight * deviceAspectRatio;
-      
-      // 弹窗总宽度 = 视频显示宽度 + 工具栏宽度
-      this.dialogWidth = Math.round(videoDisplayWidth + toolbarWidth);
-      this.dialogHeight = targetHeight;
+      const maxDialogWidth = window.innerWidth - 32;
 
-      console.log(`自适应弹窗大小: ${this.dialogWidth}x${this.dialogHeight} (设备: ${deviceWidth}x${deviceHeight}, 比例: ${deviceAspectRatio.toFixed(2)})`);
+      this.dialogWidth = Math.round(Math.max(360, Math.min(maxDialogWidth, videoDisplayWidth + toolbarWidth)));
+      this.dialogHeight = targetHeight;
+      this.centerDialog();
     },
 
     /** 请求屏幕共享 */
