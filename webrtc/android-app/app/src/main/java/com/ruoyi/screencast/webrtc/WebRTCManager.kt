@@ -373,6 +373,15 @@ class WebRTCManager(private val context: Context) {
             })
 
             setupControlDataChannel()
+            val currentDisplayInfo = getDisplayInfo()
+            sendDeviceResolution(currentDisplayInfo)
+            if (activeCaptureConfig.width > 0 && activeCaptureConfig.height > 0) {
+                sendVideoResolution(
+                    activeCaptureConfig.width,
+                    activeCaptureConfig.height,
+                    activeCaptureConfig.frameRate
+                )
+            }
             
             // 检查是否已启动屏幕捕获
             if (localVideoTrack == null) {

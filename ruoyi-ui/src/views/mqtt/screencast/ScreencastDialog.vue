@@ -319,6 +319,16 @@ export default {
     }
   },
   methods: {
+    getEffectiveDeviceResolution() {
+      if (this.deviceResolution && this.deviceResolution.width && this.deviceResolution.height) {
+        return {
+          width: this.deviceResolution.width,
+          height: this.deviceResolution.height
+        };
+      }
+      return null;
+    },
+
     /** 初始化 WebRTC 管理器 */
     initWebRTC() {
       this.webrtcManager = new WebRTCManager({
@@ -1016,19 +1026,11 @@ export default {
         return;
       }
 
-      let deviceWidth, deviceHeight;
+      const deviceResolution = this.getEffectiveDeviceResolution();
+      if (!deviceResolution) return;
 
-      if (this.deviceResolution) {
-        deviceWidth = this.deviceResolution.width;
-        deviceHeight = this.deviceResolution.height;
-      } else if (this.currentStats.resolution) {
-        [deviceWidth, deviceHeight] = this.currentStats.resolution.split('x').map(Number);
-      } else {
-        deviceWidth = 1080;
-        deviceHeight = 1920;
-      }
-
-      if (!deviceWidth || !deviceHeight) return;
+      const deviceWidth = deviceResolution.width;
+      const deviceHeight = deviceResolution.height;
 
       const targetHeight = this.getPcDialogHeight();
       const deviceAspectRatio = deviceWidth / deviceHeight;
@@ -1396,17 +1398,14 @@ export default {
       }
 
       // 优先使用从Android端获取的真实设备分辨率
-      let deviceWidth, deviceHeight;
-      
-      if (this.deviceResolution) {
-        deviceWidth = this.deviceResolution.width;
-        deviceHeight = this.deviceResolution.height;
-      } else if (this.currentStats.resolution) {
-        [deviceWidth, deviceHeight] = this.currentStats.resolution.split('x').map(Number);
-      } else {
-        console.warn('无法获取设备分辨率，无法绘制网格');
+      const deviceResolution = this.getEffectiveDeviceResolution();
+      if (!deviceResolution) {
+        console.warn('No device resolution available for grid rendering');
         return;
       }
+
+      const deviceWidth = deviceResolution.width;
+      const deviceHeight = deviceResolution.height;
 
       // 清空现有网格
       const gridLines = gridContainer.querySelector('.grid-lines');
@@ -1474,16 +1473,13 @@ export default {
     /** 显示坐标信息（调试用） */
     showCoordinateInfo(event, coords) {
       // 优先使用从Android端获取的真实设备分辨率
-      let deviceWidth, deviceHeight;
-      
-      if (this.deviceResolution) {
-        deviceWidth = this.deviceResolution.width;
-        deviceHeight = this.deviceResolution.height;
-      } else if (this.currentStats.resolution) {
-        [deviceWidth, deviceHeight] = this.currentStats.resolution.split('x').map(Number);
-      } else {
+      const deviceResolution = this.getEffectiveDeviceResolution();
+      if (!deviceResolution) {
         return;
       }
+
+      const deviceWidth = deviceResolution.width;
+      const deviceHeight = deviceResolution.height;
 
       // 计算百分比位置 - 基于设备分辨率
       const percentX = ((coords.x / deviceWidth) * 100).toFixed(1);
@@ -1836,18 +1832,15 @@ export default {
       }
 
       // 优先使用从Android端获取的真实设备分辨率
+      const deviceResolution = this.getEffectiveDeviceResolution();
       let deviceWidth, deviceHeight;
       
-      if (this.deviceResolution) {
-        deviceWidth = this.deviceResolution.width;
-        deviceHeight = this.deviceResolution.height;
-        console.log(`使用真实设备分辨率: ${deviceWidth}x${deviceHeight}`);
-      } else if (this.currentStats.resolution) {
-        // 备用方案：使用视频流分辨率（可能不准确）
-        [deviceWidth, deviceHeight] = this.currentStats.resolution.split('x').map(Number);
-        console.warn(`使用视频流分辨率作为备用: ${deviceWidth}x${deviceHeight}`);
+      if (deviceResolution) {
+        deviceWidth = deviceResolution.width;
+        deviceHeight = deviceResolution.height;
+        console.log(`Using device resolution: ${deviceWidth}x${deviceHeight}`);
       } else {
-        console.warn('无法获取设备分辨率信息');
+        console.warn('No device resolution available for coordinate mapping');
         return null;
       }
       
@@ -1917,8 +1910,9 @@ export default {
       }
 
       const rect = video.getBoundingClientRect();
-      const sourceWidth = video.videoWidth || (this.videoResolution && this.videoResolution.width) || (this.deviceResolution && this.deviceResolution.width) || rect.width;
-      const sourceHeight = video.videoHeight || (this.videoResolution && this.videoResolution.height) || (this.deviceResolution && this.deviceResolution.height) || rect.height;
+      const deviceResolution = this.getEffectiveDeviceResolution();
+      const sourceWidth = (deviceResolution && deviceResolution.width) || rect.width;
+      const sourceHeight = (deviceResolution && deviceResolution.height) || rect.height;
 
       if (!sourceWidth || !sourceHeight || !rect.width || !rect.height) {
         return { width: rect.width, height: rect.height, offsetX: 0, offsetY: 0 };
