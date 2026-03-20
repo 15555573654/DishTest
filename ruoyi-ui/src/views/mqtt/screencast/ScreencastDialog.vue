@@ -215,6 +215,7 @@ export default {
       gesturePath: [],
       longPressTimer: null,
       longPressTriggered: false,
+      longPressSent: false,
       touchDownSent: false,
       lastTouchMoveSentAt: 0,
       lastTouchMoveX: 0,
@@ -1330,22 +1331,26 @@ export default {
         timestamp: this.gestureStartTime
       }];
       this.longPressTriggered = false;
-      this.cancelLongPressTimer();
+      this.longPressSent = false;
       this.touchDownSent = false;
       this.lastTouchMoveSentAt = this.gestureStartTime;
       this.lastTouchMoveX = this.gestureStartX;
       this.lastTouchMoveY = this.gestureStartY;
-
-      this.sendTouchEvent('touchDown', {
-        x: this.gestureStartX,
-        y: this.gestureStartY
-      });
-      this.touchDownSent = true;
+      this.cancelLongPressTimer();
       this.longPressTimer = setTimeout(() => {
         if (!this.isDraggingVideo || this.longPressTriggered) {
           return;
         }
         this.longPressTriggered = true;
+        this.longPressSent = true;
+        this.sendTouchEvent('touchDown', {
+          x: this.gestureStartX,
+          y: this.gestureStartY
+        });
+        this.touchDownSent = true;
+        this.lastTouchMoveSentAt = Date.now();
+        this.lastTouchMoveX = this.gestureStartX;
+        this.lastTouchMoveY = this.gestureStartY;
       }, 420);
     },
 
@@ -1379,14 +1384,14 @@ export default {
         }
       }
 
-      if (this.touchDownSent && coords) {
+      if (this.longPressTriggered && this.touchDownSent && coords) {
         const now = Date.now();
         const movedDistance = Math.hypot(coords.x - this.lastTouchMoveX, coords.y - this.lastTouchMoveY);
         if (movedDistance >= 3 && now - this.lastTouchMoveSentAt >= 16) {
           this.sendTouchEvent('touchMove', {
             x: coords.x,
             y: coords.y
-          }, false);
+          });
           this.lastTouchMoveSentAt = now;
           this.lastTouchMoveX = coords.x;
           this.lastTouchMoveY = coords.y;
@@ -1419,17 +1424,36 @@ export default {
 
       if (screenDragDistance >= swipeThreshold || deviceDragDistance >= 18) {
         const gesturePath = this.buildGesturePath(pointEvent, coords);
+        const swipeDuration = this.resolveSwipeDuration(gesturePath, durationMs);
 
-        this.releaseHeldTouch(coords.x, coords.y);
+        if (this.longPressTriggered) {
+          this.releaseHeldTouch(coords.x, coords.y);
+          this.cancelGesture();
+          return;
+        }
+
+        this.sendTouchEvent('swipe', {
+          x1: this.gestureStartX,
+          y1: this.gestureStartY,
+          x2: coords.x,
+          y2: coords.y,
+          durationMs: swipeDuration
+        });
         this.showSwipeTrail(gesturePath);
         this.cancelGesture();
         return;
       }
 
-      this.releaseHeldTouch(coords.x, coords.y);
-      this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
-
-      this.isDraggingVideo = false;
+      if (this.longPressTriggered) {
+        this.releaseHeldTouch(coords.x, coords.y);
+      } else {
+        this.sendTouchEvent('click', {
+          x: this.gestureStartX,
+          y: this.gestureStartY
+        });
+        this.showClickMarker(this.gestureStartClientX, this.gestureStartClientY);
+      }
+      this.cancelGesture();
     },
 
     cancelLongPressTimer() {
@@ -1468,10 +1492,35 @@ export default {
       return path;
     },
 
+    resolveSwipeDuration(path, fallbackDurationMs) {
+      if (!Array.isArray(path) || path.length < 2) {
+        return Math.min(Math.max(fallbackDurationMs || 180, 120), 260);
+      }
+
+      const firstPoint = path[0];
+      const lastPoint = path[path.length - 1];
+      const measuredDuration = Math.max((lastPoint.timestamp || 0) - (firstPoint.timestamp || 0), 1);
+      const distance = Math.hypot(
+        (lastPoint.x || 0) - (firstPoint.x || 0),
+        (lastPoint.y || 0) - (firstPoint.y || 0)
+      );
+
+      if (distance >= 900) {
+        return Math.min(Math.max(measuredDuration, 110), 180);
+      }
+
+      if (distance >= 500) {
+        return Math.min(Math.max(measuredDuration, 120), 220);
+      }
+
+      return Math.min(Math.max(measuredDuration, 140), 260);
+    },
+
     cancelGesture() {
       this.releaseHeldTouch();
       this.cancelLongPressTimer();
       this.longPressTriggered = false;
+      this.longPressSent = false;
       this.touchDownSent = false;
       this.lastTouchMoveSentAt = 0;
       this.gesturePath = [];
