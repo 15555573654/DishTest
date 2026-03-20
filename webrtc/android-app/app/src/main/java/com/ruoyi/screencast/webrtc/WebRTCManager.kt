@@ -2,8 +2,13 @@ package com.ruoyi.screencast.webrtc
 
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.media.projection.MediaProjection
+import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
+import android.content.pm.ActivityInfo
 import android.view.Surface
 import android.view.WindowManager
 import com.google.gson.Gson
@@ -612,6 +617,12 @@ class WebRTCManager(private val context: Context) {
                     data.y2 ?: 0f,
                     data.durationMs
                 )
+                "volumeUp" -> adjustVolume("up")
+                "volumeDown" -> adjustVolume("down")
+                "rotateScreen" -> rotateScreen()
+                "setClipboard" -> setClipboardText(data.text)
+                "readClipboard" -> sendClipboardContent()
+                "installApp" -> installAppFromUrl(data.url)
                 "setQuality" -> handleQualityChange(data.settings)
                 "refresh-video" -> sendRefreshConfirmation()
                 "stopCapture" -> handleStopCaptureRequest()
@@ -866,6 +877,104 @@ class WebRTCManager(private val context: Context) {
         AccessibilityHelper.performHome()
     }
 
+    private fun adjustVolume(direction: String) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        val adjustDirection = if (direction == "up") AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
+        audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustDirection, AudioManager.FLAG_SHOW_UI)
+        sendVolumeConfirmation(direction)
+    }
+
+    private fun rotateScreen() {
+        val activity = context as? android.app.Activity ?: return
+        val orientation = context.resources.configuration.orientation
+        activity.requestedOrientation = if (orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+        sendRotationConfirmation()
+    }
+
+    private fun setClipboardText(text: String?) {
+        val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        val content = text ?: ""
+        clipboardManager.setPrimaryClip(ClipData.newPlainText("remote-control", content))
+        sendClipboardWriteConfirmation()
+    }
+
+    private fun sendClipboardContent() {
+        val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        val text = clipboardManager.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+        val topic = "control/$username/$deviceName/feedback"
+        val message = mapOf(
+            "type" to "clipboard-content",
+            "deviceName" to deviceName,
+            "text" to text,
+            "timestamp" to System.currentTimeMillis(),
+            "from" to "device"
+        )
+        mqttManager?.publish(topic, gson.toJson(message))
+    }
+
+    private fun installAppFromUrl(url: String?) {
+        val installUrl = url?.trim().orEmpty()
+        if (installUrl.isBlank()) {
+            logCallback?.invoke("Install app ignored: empty url")
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(installUrl)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+        sendInstallConfirmation(installUrl)
+    }
+
+    private fun sendVolumeConfirmation(direction: String) {
+        val topic = "control/$username/$deviceName/feedback"
+        val message = mapOf(
+            "type" to "volume-confirmation",
+            "deviceName" to deviceName,
+            "direction" to direction,
+            "timestamp" to System.currentTimeMillis(),
+            "from" to "device"
+        )
+        mqttManager?.publish(topic, gson.toJson(message))
+    }
+
+    private fun sendRotationConfirmation() {
+        val topic = "control/$username/$deviceName/feedback"
+        val message = mapOf(
+            "type" to "rotation-confirmation",
+            "deviceName" to deviceName,
+            "timestamp" to System.currentTimeMillis(),
+            "from" to "device"
+        )
+        mqttManager?.publish(topic, gson.toJson(message))
+    }
+
+    private fun sendClipboardWriteConfirmation() {
+        val topic = "control/$username/$deviceName/feedback"
+        val message = mapOf(
+            "type" to "clipboard-write-confirmation",
+            "deviceName" to deviceName,
+            "timestamp" to System.currentTimeMillis(),
+            "from" to "device"
+        )
+        mqttManager?.publish(topic, gson.toJson(message))
+    }
+
+    private fun sendInstallConfirmation(url: String) {
+        val topic = "control/$username/$deviceName/feedback"
+        val message = mapOf(
+            "type" to "install-app-confirmation",
+            "deviceName" to deviceName,
+            "url" to url,
+            "timestamp" to System.currentTimeMillis(),
+            "from" to "device"
+        )
+        mqttManager?.publish(topic, gson.toJson(message))
+    }
+
     private fun clampToDisplay(x: Float, y: Float): TouchPoint {
         val displayInfo = getDisplayInfo()
         return TouchPoint(
@@ -1091,7 +1200,9 @@ class WebRTCManager(private val context: Context) {
         val y2: Float? = null,
         val durationMs: Long? = null,
         val key: String? = null,
-        val settings: QualitySettings? = null
+        val settings: QualitySettings? = null,
+        val text: String? = null,
+        val url: String? = null
     )
     
     data class QualitySettings(

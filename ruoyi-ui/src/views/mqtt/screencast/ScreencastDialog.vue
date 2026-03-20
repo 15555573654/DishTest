@@ -2,7 +2,7 @@
   <el-dialog
     :visible.sync="visible"
     :width="dialogWidth + 'px'"
-    :fullscreen="isMobile"
+    :fullscreen="isMobile || isDialogFullscreen"
     :show-close="false"
     :close-on-click-modal="false"
     :modal="false"
@@ -25,6 +25,9 @@
           </span>
         </div>
         <div class="toolbar-actions">
+          <div class="top-action-button" @click.stop="reconnectScreencast" :class="{ disabled: !mqttClient }">
+            <i class="el-icon-connection"></i>
+          </div>
           <i class="el-icon-setting" @click.stop="showSettings = !showSettings"></i>
           <i class="el-icon-close" @click.stop="closeDialog"></i>
         </div>
@@ -57,31 +60,47 @@
         </div>
 
         <!-- 右侧功能栏 -->
-        <div class="side-toolbar">
-          <div class="toolbar-item" @click.stop="captureScreenshot" :class="{ disabled: !isStreaming }" title="截图">
-            <i class="el-icon-picture"></i>
-          </div>
-          <div class="toolbar-item" @click.stop="reconnectScreencast" :class="{ disabled: !mqttClient }" title="重新连接">
-            <i class="el-icon-connection"></i>
+        <div class="video-overlay-toolbar">
+          <div class="side-toolbar">
+            <div class="toolbar-item" @click.stop="rotateDeviceScreen" :class="{ disabled: !mqttClient }" title="rotate">
+              <i class="el-icon-refresh-right"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="adjustDeviceVolume('up')" :class="{ disabled: !mqttClient }" title="volume up">
+              <i class="el-icon-plus"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="adjustDeviceVolume('down')" :class="{ disabled: !mqttClient }" title="volume down">
+              <i class="el-icon-minus"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="toggleDialogFullscreen" :class="{ disabled: !isStreaming }" title="fullscreen dialog">
+              <i class="el-icon-full-screen"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="copyAndroidClipboardToWeb" :class="{ disabled: !mqttClient }" title="copy to web">
+              <i class="el-icon-document-copy"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="captureScreenshot" :class="{ disabled: !isStreaming }" title="screenshot">
+              <i class="el-icon-picture"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="pushWebClipboardToAndroid" :class="{ disabled: !mqttClient }" title="write to android">
+              <i class="el-icon-edit-outline"></i>
+            </div>
+            <div class="toolbar-item" @click.stop="installAppFromWeb" :class="{ disabled: !mqttClient }" title="install app">
+              <i class="el-icon-upload2"></i>
+            </div>
           </div>
 
-          <!-- 分隔线 -->
-          <div class="toolbar-divider"></div>
-
-          <!-- Android控制按钮 - MQTT连接后即可使用 -->
-          <div class="toolbar-item" @click.stop="sendVirtualKey('back')" :class="{ disabled: !mqttClient }" title="返回">
-            <i class="el-icon-back"></i>
-          </div>
-          <div class="toolbar-item" @click.stop="sendVirtualKey('home')" :class="{ disabled: !mqttClient }" title="主页">
-            <i class="el-icon-s-home"></i>
-          </div>
-          <div class="toolbar-item" @click.stop="sendVirtualKey('menu')" :class="{ disabled: !mqttClient }" title="任务栏">
-            <i class="el-icon-menu"></i>
+          <div class="bottom-toolbar">
+            <div class="bottom-toolbar-item" @click.stop="sendVirtualKey('menu')" :class="{ disabled: !mqttClient }" title="task">
+              <i class="el-icon-menu"></i>
+            </div>
+            <div class="bottom-toolbar-item" @click.stop="sendVirtualKey('home')" :class="{ disabled: !mqttClient }" title="home">
+              <i class="el-icon-s-home"></i>
+            </div>
+            <div class="bottom-toolbar-item" @click.stop="sendVirtualKey('back')" :class="{ disabled: !mqttClient }" title="back">
+              <i class="el-icon-back"></i>
+            </div>
           </div>
         </div>
       </div>
-
-      <!-- 设置面板 -->
       <div class="settings-panel" v-show="showSettings" @click.stop>
         <!-- 设置面板 -->
         <div class="setting-item">
@@ -203,6 +222,7 @@ export default {
       videoFitMode: 'contain',
 
       isMobile: false,
+      isDialogFullscreen: false,
       debugStatsLogged: false, // 调试标志，避免重复输出统计类型
       
       // 触摸和拖拽状态
@@ -541,6 +561,27 @@ export default {
       
       console.log('收到设备反馈:', data);
       
+      if (data.type === 'clipboard-content') {
+        this.writeTextToWebClipboard(data.text || '');
+        return;
+      }
+      if (data.type === 'clipboard-write-confirmation') {
+        this.$message.success('安卓剪切板已更新');
+        return;
+      }
+      if (data.type === 'volume-confirmation') {
+        this.$message.success(`音量已${data.direction === 'up' ? '调高' : '调低'}`);
+        return;
+      }
+      if (data.type === 'install-app-confirmation') {
+        this.$message.success('已发送安装请求到安卓端');
+        return;
+      }
+      if (data.type === 'rotation-confirmation') {
+        this.$message.success('已切换屏幕方向');
+        return;
+      }
+
       switch (data.type) {
         case 'click-confirmation':
           console.log(`✓ 设备确认点击: (${data.x}, ${data.y})`);
@@ -900,6 +941,82 @@ export default {
     },
 
     /** 发送控制指令 */
+    adjustDeviceVolume(direction) {
+      return this.sendControlCommand({
+        action: direction === 'up' ? 'volumeUp' : 'volumeDown',
+        deviceName: this.deviceName,
+        from: 'frontend'
+      });
+    },
+
+    copyAndroidClipboardToWeb() {
+      return this.sendControlCommand({
+        action: 'readClipboard',
+        deviceName: this.deviceName,
+        from: 'frontend'
+      });
+    },
+
+    async pushWebClipboardToAndroid() {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        this.$message.warning('当前浏览器不支持读取Web剪切板');
+        return;
+      }
+
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) {
+          this.$message.warning('Web剪切板为空');
+          return;
+        }
+        await this.sendControlCommand({
+          action: 'setClipboard',
+          text,
+          deviceName: this.deviceName,
+          from: 'frontend'
+        });
+      } catch (error) {
+        this.$message.error('读取Web剪切板失败: ' + error.message);
+      }
+    },
+
+    async writeTextToWebClipboard(text) {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        this.$message.warning('当前浏览器不支持写入Web剪切板');
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text || '');
+        this.$message.success('已复制到Web剪切板');
+      } catch (error) {
+        this.$message.error('写入Web剪切板失败: ' + error.message);
+      }
+    },
+
+    async installAppFromWeb() {
+      try {
+        const { value } = await this.$prompt('请输入APK下载地址', '安装App', {
+          confirmButtonText: '发送到安卓',
+          cancelButtonText: '取消',
+          inputPlaceholder: 'https://example.com/app.apk'
+        });
+        if (!value || !value.trim()) {
+          return;
+        }
+        await this.sendControlCommand({
+          action: 'installApp',
+          url: value.trim(),
+          deviceName: this.deviceName,
+          from: 'frontend'
+        });
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message.error('发送安装请求失败');
+        }
+      }
+    },
+
     sendControlCommand(payload, showWarning = true) {
       if (this.webrtcManager && this.webrtcManager.isDataChannelOpen()) {
         return Promise.resolve(this.webrtcManager.sendMessage(payload));
@@ -941,6 +1058,12 @@ export default {
         return;
       }
 
+      if (this.isDialogFullscreen) {
+        this.dialogWidth = window.innerWidth;
+        this.dialogHeight = window.innerHeight;
+        return;
+      }
+
       const deviceResolution = this.getEffectiveDeviceResolution();
       if (!deviceResolution) return;
 
@@ -949,9 +1072,10 @@ export default {
 
       const targetHeight = this.getPcDialogHeight();
       const deviceAspectRatio = deviceWidth / deviceHeight;
-      const toolbarWidth = 40;
+      const toolbarWidth = 44;
       const topToolbarHeight = 50;
-      const videoDisplayHeight = targetHeight - topToolbarHeight;
+      const bottomToolbarHeight = 48;
+      const videoDisplayHeight = targetHeight - topToolbarHeight - bottomToolbarHeight;
       const videoDisplayWidth = videoDisplayHeight * deviceAspectRatio;
       const maxDialogWidth = window.innerWidth - 32;
 
@@ -1042,30 +1166,26 @@ export default {
     },
 
     /** 全屏切换 */
-    toggleFullscreen() {
+    toggleDialogFullscreen() {
       if (!this.isStreaming) {
         return;
       }
 
-      const video = this.$refs.remoteVideo;
-
-      if (!document.fullscreenElement) {
-        if (video.requestFullscreen) {
-          video.requestFullscreen();
-        } else if (video.webkitRequestFullscreen) {
-          video.webkitRequestFullscreen();
-        } else if (video.mozRequestFullScreen) {
-          video.mozRequestFullScreen();
-        }
+      this.isDialogFullscreen = !this.isDialogFullscreen;
+      if (this.isDialogFullscreen) {
+        this.dialogWidth = window.innerWidth;
+        this.dialogHeight = window.innerHeight;
       } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-          document.webkitExitFullscreen();
-        } else if (document.mozCancelFullScreen) {
-          document.mozCancelFullScreen();
-        }
+        this.autoResizeDialog();
       }
+    },
+
+    rotateDeviceScreen() {
+      return this.sendControlCommand({
+        action: 'rotateScreen',
+        deviceName: this.deviceName,
+        from: 'frontend'
+      });
     },
 
     /** 截图 */
@@ -1832,6 +1952,10 @@ export default {
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
+  padding-right: 40px;
+  padding-bottom: 48px;
+  box-sizing: border-box;
 }
 
 /* 顶部工具栏 */
@@ -1941,7 +2065,31 @@ export default {
 
 .toolbar-actions {
   display: flex;
+  align-items: center;
   gap: 15px;
+}
+
+.top-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(64, 158, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.top-action-button:hover:not(.disabled) {
+  background: rgba(64, 158, 255, 0.3);
+}
+
+.top-action-button.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .toolbar-actions i {
@@ -1995,13 +2143,25 @@ export default {
 }
 
 /* 右侧功能栏 */
+.video-overlay-toolbar {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+}
+
 .side-toolbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 48px;
   display: flex;
   flex-direction: column;
   width: 40px;
-  background: rgba(20, 20, 20, 0.98);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 15, 15, 0.92);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+  pointer-events: auto;
 }
 
 .toolbar-divider {
@@ -2013,15 +2173,15 @@ export default {
 
 .toolbar-item {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 40px;
+  min-height: 40px;
+  padding: 0;
   color: #fff;
   cursor: pointer;
   transition: all 0.2s;
   user-select: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   position: relative;
 }
 
@@ -2055,6 +2215,50 @@ export default {
 
 .toolbar-item i {
   font-size: 16px;
+}
+
+.toolbar-item span {
+  display: none;
+}
+
+.bottom-toolbar {
+  position: absolute;
+  left: 0;
+  right: 40px;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  background: rgba(12, 12, 12, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+}
+
+.bottom-toolbar-item {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bottom-toolbar-item:hover:not(.disabled) {
+  background: rgba(64, 158, 255, 0.15);
+}
+
+.bottom-toolbar-item.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.bottom-toolbar-item i {
+  font-size: 16px;
+}
+
+.bottom-toolbar-item span {
+  display: none;
 }
 
 /* 设置面板 */
@@ -2157,25 +2361,28 @@ export default {
 
   .main-content {
     flex-direction: column;
+    padding-right: 36px;
+    padding-bottom: 44px;
   }
 
   .side-toolbar {
-    width: 100%;
-    flex-direction: row;
-    height: 60px;
-    border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    width: 36px;
+    bottom: 44px;
   }
 
   .toolbar-item {
-    flex: 1;
-    height: 100%;
+    width: 100%;
+    min-height: 36px;
     border-bottom: none;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: none;
   }
 
-  .toolbar-item:last-child {
-    border-right: none;
+  .bottom-toolbar-item {
+    min-height: 44px;
+  }
+
+  .bottom-toolbar {
+    right: 36px;
   }
 
   .toolbar-item:hover:not(.disabled)::before {
