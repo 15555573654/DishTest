@@ -63,6 +63,11 @@ spring:
       max-file-size: 100MB
       # 设置总上传的文件大小
       max-request-size: 100MB
+    multipart:
+      # 单个文件大小
+      max-file-size: 100MB
+      # 设置总上传的文件大小
+      max-request-size: 100MB
   # 服务模块
   devtools:
     restart:

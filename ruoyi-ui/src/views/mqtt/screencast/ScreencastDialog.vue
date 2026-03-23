@@ -1027,6 +1027,24 @@ export default {
           'Content-Type': 'multipart/form-data'
         }
       });
+      return response && response.url ? this.normalizeUploadUrl(response.url) : '';
+    },
+
+    normalizeUploadUrl(url) {
+      if (!url) {
+        return '';
+      }
+      try {
+        const parsedUrl = new URL(url, window.location.origin);
+        if (['localhost', '127.0.0.1', '0.0.0.0'].includes(parsedUrl.hostname)) {
+          const pageOrigin = new URL(window.location.origin);
+          parsedUrl.protocol = pageOrigin.protocol;
+          parsedUrl.host = pageOrigin.host;
+        }
+        return parsedUrl.toString();
+      } catch (error) {
+        return url;
+      }
       return response && response.url ? response.url : '';
     },
 
