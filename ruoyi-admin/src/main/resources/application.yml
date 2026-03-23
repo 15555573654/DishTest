@@ -7,7 +7,7 @@ ruoyi:
   # 版权年份
   copyrightYear: 2026
   # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
-  profile: D:/ruoyi/uploadPath
+  profile: C:/ruoyi/uploadPath
   # 获取ip地址开关
   addressEnabled: false
   # 验证码类型 math 数字计算 char 字符验证
@@ -63,6 +63,11 @@ spring:
       max-file-size: 100MB
       # 设置总上传的文件大小
       max-request-size: 100MB
+    multipart:
+      # 单个文件大小
+      max-file-size: 100MB
+      # 设置总上传的文件大小
+      max-request-size: 100MB
   # 服务模块
   devtools:
     restart:
@@ -71,7 +76,7 @@ spring:
   # redis 配置
   redis:
     # 地址
-    host: 192.168.1.104
+    host: 127.0.0.1
     # 端口，默认为6379
     port: 6379
     # 数据库索引
@@ -146,8 +151,8 @@ webrtc:
     # Coturn static-auth-secret / TURN_SECRET
     secret: q65742472
     # realm 仅用于返回给调用方做展示或排障，不参与密码生成
-    realm: 103.85.227.223
+    realm: 150.158.128.73
     # 临时凭证有效期，单位秒
     ttlSeconds: 3600
     # TURN URI 列表，多个地址使用英文逗号分隔
-    urls: turn:103.85.227.223:3478?transport=udp,turn:103.85.227.223:3478?transport=tcp
+    urls: turn:150.158.128.73:3478?transport=udp,turn:150.158.128.73:3478?transport=tcp

@@ -313,7 +313,7 @@ export default {
       currentUsername: '',
       connecting: false,
       connectionForm: {
-        mqttHost: '103.85.227.223',
+        mqttHost: '150.158.128.73',
         mqttPort: '8083',
         username: '',
         password: ''

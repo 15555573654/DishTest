@@ -6,9 +6,9 @@ spring:
         druid:
             # 主库数据源
             master:
-                url: jdbc:mysql://192.168.1.104:3306/ry-vue?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
-                username: ry-vue
-                password: Ry65742472
+                url: jdbc:mysql://150.158.128.73:3306/mqtt_auto?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+                username: mqtt_auto
+                password: Qq65742472
             # 从库数据源
             slave:
                 # 从数据源开关/默认关闭

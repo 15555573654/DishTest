@@ -1045,6 +1045,7 @@ export default {
       } catch (error) {
         return url;
       }
+      return response && response.url ? response.url : '';
     },
 
     async installAppFromWeb() {
