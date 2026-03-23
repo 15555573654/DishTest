@@ -26,6 +26,7 @@ export default class WebRTCManager {
     // WebRTC 对象
     this.peerConnection = null;
     this.dataChannel = null;
+    this.dataChannelCloseExpected = false;
     this.remoteStream = null;
     
     // 状态
@@ -333,6 +334,7 @@ export default class WebRTCManager {
     };
     
     this.dataChannel = this.peerConnection.createDataChannel('control', dataChannelInit);
+    this.dataChannelCloseExpected = false;
     
     this.dataChannel.onopen = () => {
       console.log('DataChannel已打开');
@@ -343,10 +345,22 @@ export default class WebRTCManager {
     };
     
     this.dataChannel.onerror = (error) => {
+      const rtcError = error?.error;
+      const errorMessage = rtcError?.message || error?.message || '';
+      const isUserAbort = errorMessage.includes('User-Initiated Abort') || errorMessage.includes('Close called');
+      if (this.dataChannelCloseExpected || isUserAbort) {
+        console.warn('DataChannel关闭事件(预期):', errorMessage || error);
+        return;
+      }
       console.error('DataChannel错误:', error);
       if (this.callbacks.onError) {
-        this.callbacks.onError('DataChannel错误: ' + error.message);
+        this.callbacks.onError('DataChannel错误: ' + (errorMessage || 'unknown'));
       }
+    };
+
+    this.dataChannel.onclose = () => {
+      const level = this.dataChannelCloseExpected ? 'log' : 'warn';
+      console[level](`DataChannel已关闭${this.dataChannelCloseExpected ? '(预期)' : '(非预期)'}`);
     };
   }
   
@@ -828,6 +842,11 @@ export default class WebRTCManager {
     }
 
     if (this.dataChannel) {
+      this.dataChannelCloseExpected = true;
+      this.dataChannel.onerror = null;
+      this.dataChannel.onmessage = null;
+      this.dataChannel.onopen = null;
+      this.dataChannel.onclose = null;
       this.dataChannel.close();
       this.dataChannel = null;
     }
