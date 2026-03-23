@@ -1788,7 +1788,6 @@ export default {
       if (deviceResolution) {
         deviceWidth = deviceResolution.width;
         deviceHeight = deviceResolution.height;
-        console.log(`Using device resolution: ${deviceWidth}x${deviceHeight}`);
       } else {
         console.warn('No device resolution available for coordinate mapping');
         return null;
@@ -1847,7 +1846,6 @@ export default {
         console.log(`=== 转换完成 ===`);
       } else {
         // 简化输出：只显示最终结果
-        console.log(`点击转换: (${clickX.toFixed(0)}, ${clickY.toFixed(0)}) → 设备(${finalX}, ${finalY}) [${(relativeX*100).toFixed(1)}%, ${(relativeY*100).toFixed(1)}%]`);
       }
 
       return { x: finalX, y: finalY };
