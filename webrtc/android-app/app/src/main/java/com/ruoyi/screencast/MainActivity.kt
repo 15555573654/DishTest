@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
                 // 停止投屏
                 log("🛑 停止投屏")
                 webrtcManager.pauseStreaming()
+                mqttManager.publishDeviceStatus("未运行")
                 binding.btnStartScreen.text = "开始投屏"
                 binding.tvScreenStatus.text = "状态: 已停止"
                 Toast.makeText(this, "投屏已停止", Toast.LENGTH_SHORT).show()
@@ -248,6 +249,7 @@ class MainActivity : AppCompatActivity() {
             binding.root.postDelayed({
                 try {
                     webrtcManager.startCapture(pendingScreenCaptureResultCode, pendingScreenCaptureData!!)
+                    mqttManager.publishDeviceStatus("运行中")
                     log("WebRTC capture start requested")
                 } catch (e: Exception) {
                     log("WebRTC capture start failed: ${e.message}")

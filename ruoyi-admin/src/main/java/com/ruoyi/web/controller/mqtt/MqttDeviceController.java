@@ -186,43 +186,6 @@ public class MqttDeviceController extends BaseController
     @PostMapping("/batchSave")
     public AjaxResult batchSave(@RequestBody List<MqttDevice> devices)
     {
-        if (devices == null || devices.isEmpty())
-        {
-            return error("设备列表不能为空");
-        }
-
-        String username = SecurityUtils.getUsername();
-        int successCount = 0;
-
-        for (MqttDevice device : devices)
-        {
-            try
-            {
-                // 检查设备是否存在
-                MqttDevice existingDevice = deviceManagerService.selectMqttDeviceByName(device.getDeviceName());
-
-                if (existingDevice != null)
-                {
-                    // 更新现有设备
-                    device.setDeviceId(existingDevice.getDeviceId());
-                    device.setUpdateBy(username);
-                    deviceManagerService.updateMqttDevice(device);
-                }
-                else
-                {
-                    // 新增设备
-                    device.setCreateBy(username);
-                    device.setUsername(username);
-                    deviceManagerService.insertMqttDevice(device);
-                }
-                successCount++;
-            }
-            catch (Exception e)
-            {
-                logger.error("保存设备失败: deviceName={}", device.getDeviceName(), e);
-            }
-        }
-
-        return success("成功保存 " + successCount + " 个设备");
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再入库");
     }
 }

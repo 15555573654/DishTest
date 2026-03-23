@@ -2,12 +2,10 @@ package com.ruoyi.system.service.impl;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.ruoyi.system.service.IDeviceManagerService;
 import com.ruoyi.system.service.IMqttMessageHandler;
 
 /**
@@ -20,9 +18,6 @@ import com.ruoyi.system.service.IMqttMessageHandler;
 public class MqttMessageHandlerImpl implements IMqttMessageHandler
 {
     private static final Logger log = LoggerFactory.getLogger(MqttMessageHandlerImpl.class);
-
-    @Autowired
-    private IDeviceManagerService deviceManagerService;
 
     @Override
     public void handleMessage(String topic, String payload)
@@ -88,7 +83,7 @@ public class MqttMessageHandlerImpl implements IMqttMessageHandler
                 status = "在线";
             }
 
-            deviceManagerService.updateDeviceStatus(deviceName, username, status);
+            log.info("状态消息(仅透传不入库): deviceName={}, username={}, status={}", deviceName, username, status);
         }
     }
 
@@ -101,15 +96,15 @@ public class MqttMessageHandlerImpl implements IMqttMessageHandler
 
         if ("停止".equals(response))
         {
-            deviceManagerService.updateScriptStatus(deviceName, username, "未运行");
+            log.info("响应消息(仅透传不入库): deviceName={}, username={}, scriptStatus=未运行", deviceName, username);
         }
         else if ("运行中".equals(response))
         {
-            deviceManagerService.updateScriptStatus(deviceName, username, "运行中");
+            log.info("响应消息(仅透传不入库): deviceName={}, username={}, scriptStatus=运行中", deviceName, username);
         }
         else if ("暂停".equals(response))
         {
-            deviceManagerService.updateScriptStatus(deviceName, username, "暂停");
+            log.info("响应消息(仅透传不入库): deviceName={}, username={}, scriptStatus=暂停", deviceName, username);
         }
     }
 
@@ -120,9 +115,8 @@ public class MqttMessageHandlerImpl implements IMqttMessageHandler
     {
         log.info("处理配置消息: deviceName={}, username={}, msgData={}", deviceName, username, msgData);
         
-        // 收到任何配置消息都表示设备在线 - 先更新状态
-        log.info("更新设备状态为在线: deviceName={}, username={}", deviceName, username);
-        deviceManagerService.updateDeviceStatus(deviceName, username, "在线");
+        // 仅记录收到的配置消息，不做设备入库更新
+        log.info("配置消息(仅透传不入库): deviceName={}, username={}", deviceName, username);
         
         String msgAction = msgData.getString("type");
         String msgContent = msgData.getString("msg");
@@ -142,7 +136,7 @@ public class MqttMessageHandlerImpl implements IMqttMessageHandler
         try
         {
             JSONObject gameData = JSON.parseObject(msgContent);
-            deviceManagerService.updateGameData(deviceName, username, gameData);
+            log.info("配置数据(仅透传不入库): deviceName={}, username={}, keys={}", deviceName, username, gameData.keySet());
         }
         catch (Exception e)
         {
