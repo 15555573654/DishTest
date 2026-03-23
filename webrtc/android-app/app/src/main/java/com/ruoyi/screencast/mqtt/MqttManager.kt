@@ -45,6 +45,9 @@ class MqttManager(private val context: Context) {
                 isCleanSession = true
                 connectionTimeout = 10
                 keepAliveInterval = 60
+                val willTopic = "status/$user/$device"
+                val willPayload = """{"deviceName":"$device","status":"offline","scriptStatus":"未运行"}"""
+                setWill(willTopic, willPayload.toByteArray(), 1, true)
             }
             
             mqttClient?.setCallback(object : MqttCallback {
@@ -88,6 +91,7 @@ class MqttManager(private val context: Context) {
             logCallback?.invoke("已订阅主题: $webrtcTopic")
             logCallback?.invoke("已订阅主题: $controlTopic")
             statusCallback?.invoke("已连接")
+            publishDeviceStatus("未运行")
             callback(true)
             
         } catch (e: Exception) {
@@ -99,6 +103,7 @@ class MqttManager(private val context: Context) {
     
     fun disconnect() {
         try {
+            publishOfflineStatus()
             mqttClient?.disconnect()
             mqttClient?.close()
             mqttClient = null
@@ -109,14 +114,31 @@ class MqttManager(private val context: Context) {
         }
     }
     
-    fun publish(topic: String, message: String) {
+    fun publish(topic: String, message: String, retained: Boolean = false) {
         try {
             val mqttMessage = MqttMessage(message.toByteArray())
             mqttMessage.qos = 1
+            mqttMessage.isRetained = retained
             mqttClient?.publish(topic, mqttMessage)
         } catch (e: Exception) {
             logCallback?.invoke("发送消息失败: ${e.message}")
         }
+    }
+
+    fun publishDeviceStatus(scriptStatus: String) {
+        if (!isConnected()) return
+        val topic = "status/$username/$deviceName"
+        val payload = """{"deviceName":"$deviceName","status":"online","scriptStatus":"$scriptStatus"}"""
+        publish(topic, payload, true)
+        logCallback?.invoke("已发布保留状态: scriptStatus=$scriptStatus, status=online")
+    }
+
+    private fun publishOfflineStatus() {
+        if (!isConnected()) return
+        val topic = "status/$username/$deviceName"
+        val payload = """{"deviceName":"$deviceName","status":"offline","scriptStatus":"未运行"}"""
+        publish(topic, payload, true)
+        logCallback?.invoke("已发布保留状态: scriptStatus=未运行, status=offline")
     }
     
     fun isConnected(): Boolean {
