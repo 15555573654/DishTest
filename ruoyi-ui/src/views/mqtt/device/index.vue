@@ -38,10 +38,10 @@
       <el-col :xs="12" :sm="12" :md="6" :lg="6">
         <el-card shadow="hover">
           <div class="statistic-item">
-            <i class="el-icon-coin statistic-icon" style="color: #E6A23C"></i>
+            <i class="el-icon-connection statistic-icon" :style="{ color: isConnected ? '#67C23A' : '#909399' }"></i>
             <div class="statistic-content">
-              <div class="statistic-value">{{ statistics.totalDiamonds || 0 }}</div>
-              <div class="statistic-label">钻石总数</div>
+              <div class="statistic-value">{{ isConnected ? '在线' : '离线' }}</div>
+              <div class="statistic-label">服务器状态</div>
             </div>
           </div>
         </el-card>
@@ -331,6 +331,8 @@
 <script>
 import { parseTime } from "@/utils/ruoyi";
 import mqtt from 'mqtt';
+import Cookies from "js-cookie";
+import { decrypt } from "@/utils/jsencrypt";
 import ScreencastDialog from '../screencast/ScreencastDialog.vue';
 
 export default {
@@ -386,8 +388,7 @@ export default {
       statistics: {
         totalDevices: 0,
         onlineDevices: 0,
-        offlineDevices: 0,
-        totalDiamonds: 0
+        offlineDevices: 0
       },
       // 查询参数
       queryParams: {
@@ -404,11 +405,15 @@ export default {
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
     
-    // 从localStorage加载连接配置（只加载用户名和密码）
-    this.loadConnectionConfig();
+    // 自动填充MQTT账号密码（优先使用登录凭据）
+    this.prepareConnectionConfig();
     // 加载历史设备数据
     this.getList();
     this.getStatistics();
+    // 打开页面自动连接
+    this.$nextTick(() => {
+      this.autoConnect();
+    });
   },
   beforeDestroy() {
     // 移除resize监听
@@ -424,8 +429,21 @@ export default {
     checkMobile() {
       this.isMobile = window.innerWidth < 768;
     },
-    /** 加载连接配置（只加载用户名和密码） */
-    loadConnectionConfig() {
+    /** 准备连接配置（优先使用登录账号密码） */
+    prepareConnectionConfig() {
+      const loginUsername = Cookies.get("username");
+      const loginPassword = Cookies.get("password");
+      if (loginUsername && loginPassword) {
+        this.connectionForm.username = loginUsername;
+        try {
+          this.connectionForm.password = decrypt(loginPassword);
+        } catch (e) {
+          console.error("解密登录密码失败", e);
+          this.connectionForm.password = "";
+        }
+        return;
+      }
+
       const config = localStorage.getItem('mqttConnectionConfig');
       if (config) {
         try {
@@ -441,6 +459,17 @@ export default {
           console.error('加载连接配置失败', e);
         }
       }
+    },
+    /** 自动连接MQTT */
+    autoConnect() {
+      if (this.isConnected || this.connecting) {
+        return;
+      }
+      if (!this.connectionForm.username || !this.connectionForm.password) {
+        this.$modal.msgWarning("未获取到登录账号或密码，无法自动连接MQTT");
+        return;
+      }
+      this.handleConnect();
     },
     /** 保存连接配置（只保存用户名和密码） */
     saveConnectionConfig() {
@@ -743,16 +772,6 @@ export default {
       this.statistics.totalDevices = devices.length;
       this.statistics.onlineDevices = devices.filter(d => d.deviceStatus === '在线').length;
       this.statistics.offlineDevices = devices.filter(d => d.deviceStatus === '离线').length;
-
-      // 计算钻石总数
-      let totalDiamonds = 0;
-      devices.forEach(d => {
-        const diamonds = parseInt(d.diamonds);
-        if (!isNaN(diamonds)) {
-          totalDiamonds += diamonds;
-        }
-      });
-      this.statistics.totalDiamonds = totalDiamonds;
     },
     /** 发送MQTT命令 */
     publishCommand(deviceName, action, params = {}) {
