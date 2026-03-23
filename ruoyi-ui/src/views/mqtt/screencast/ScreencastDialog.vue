@@ -157,6 +157,8 @@
 import WebRTCManager from '@/utils/webrtc/WebRTCManager';
 import request from '@/utils/request';
 
+const MAX_APK_UPLOAD_SIZE_MB = 100;
+
 export default {
   name: 'ScreencastDialog',
   props: {
@@ -1041,6 +1043,12 @@ export default {
           return;
         }
 
+        const fileSizeLimit = MAX_APK_UPLOAD_SIZE_MB * 1024 * 1024;
+        if (file.size > fileSizeLimit) {
+          this.$message.warning(`APK大小不能超过 ${MAX_APK_UPLOAD_SIZE_MB}MB`);
+          return;
+        }
+
         this.$message.info('正在上传安装包...');
         const uploadedUrl = await this.uploadApkFile(file);
         if (!uploadedUrl) {
@@ -1056,6 +1064,11 @@ export default {
         });
         this.$message.success('安装请求已发送');
       } catch (error) {
+        const message = error && error.message ? error.message : '';
+        if (message.includes('Maximum upload size exceeded')) {
+          this.$message.error(`上传失败，APK大小不能超过 ${MAX_APK_UPLOAD_SIZE_MB}MB`);
+          return;
+        }
         this.$message.error('发送安装请求失败');
       }
     },
