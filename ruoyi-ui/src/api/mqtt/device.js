@@ -59,12 +59,3 @@ export function getStatistics() {
     method: 'get'
   })
 }
-
-// 批量保存设备数据
-export function batchSaveDevices(data) {
-  return request({
-    url: '/mqtt/device/batchSave',
-    method: 'post',
-    data: data
-  })
-}
