@@ -38,10 +38,10 @@
       <el-col :xs="12" :sm="12" :md="6" :lg="6">
         <el-card shadow="hover">
           <div class="statistic-item">
-            <i class="el-icon-coin statistic-icon" style="color: #E6A23C"></i>
+            <i class="el-icon-connection statistic-icon" :style="{ color: isConnected ? '#67C23A' : '#909399' }"></i>
             <div class="statistic-content">
-              <div class="statistic-value">{{ statistics.totalDiamonds || 0 }}</div>
-              <div class="statistic-label">钻石总数</div>
+              <div class="statistic-value">{{ isConnected ? '在线' : '离线' }}</div>
+              <div class="statistic-label">服务器状态</div>
             </div>
           </div>
         </el-card>
@@ -329,9 +329,10 @@
 </template>
 
 <script>
-import { listDevice, delDevice, sendCommand, getStatistics, batchSaveDevices } from "@/api/mqtt/device";
 import { parseTime } from "@/utils/ruoyi";
 import mqtt from 'mqtt';
+import Cookies from "js-cookie";
+import { decrypt } from "@/utils/jsencrypt";
 import ScreencastDialog from '../screencast/ScreencastDialog.vue';
 
 export default {
@@ -364,10 +365,6 @@ export default {
       },
       // 实时设备数据（从MQTT接收）
       realtimeDevices: {},
-      // 定时保存定时器
-      saveTimer: null,
-      // 数据是否有变化
-      dataChanged: false,
       // 投屏控制相关
       screencastDialogVisible: false,
       screencastDevice: '',
@@ -391,8 +388,7 @@ export default {
       statistics: {
         totalDevices: 0,
         onlineDevices: 0,
-        offlineDevices: 0,
-        totalDiamonds: 0
+        offlineDevices: 0
       },
       // 查询参数
       queryParams: {
@@ -409,11 +405,15 @@ export default {
     this.checkMobile();
     window.addEventListener('resize', this.checkMobile);
     
-    // 从localStorage加载连接配置（只加载用户名和密码）
-    this.loadConnectionConfig();
+    // 自动填充MQTT账号密码（优先使用登录凭据）
+    this.prepareConnectionConfig();
     // 加载历史设备数据
     this.getList();
     this.getStatistics();
+    // 打开页面自动连接
+    this.$nextTick(() => {
+      this.autoConnect();
+    });
   },
   beforeDestroy() {
     // 移除resize监听
@@ -423,18 +423,27 @@ export default {
     if (this.mqttClient) {
       this.mqttClient.end();
     }
-    // 清除定时器
-    if (this.saveTimer) {
-      clearInterval(this.saveTimer);
-    }
   },
   methods: {
     /** 检测是否为移动端 */
     checkMobile() {
       this.isMobile = window.innerWidth < 768;
     },
-    /** 加载连接配置（只加载用户名和密码） */
-    loadConnectionConfig() {
+    /** 准备连接配置（优先使用登录账号密码） */
+    prepareConnectionConfig() {
+      const loginUsername = Cookies.get("username");
+      const loginPassword = Cookies.get("password");
+      if (loginUsername && loginPassword) {
+        this.connectionForm.username = loginUsername;
+        try {
+          this.connectionForm.password = decrypt(loginPassword);
+        } catch (e) {
+          console.error("解密登录密码失败", e);
+          this.connectionForm.password = "";
+        }
+        return;
+      }
+
       const config = localStorage.getItem('mqttConnectionConfig');
       if (config) {
         try {
@@ -450,6 +459,17 @@ export default {
           console.error('加载连接配置失败', e);
         }
       }
+    },
+    /** 自动连接MQTT */
+    autoConnect() {
+      if (this.isConnected || this.connecting) {
+        return;
+      }
+      if (!this.connectionForm.username || !this.connectionForm.password) {
+        this.$modal.msgWarning("未获取到登录账号或密码，无法自动连接MQTT");
+        return;
+      }
+      this.handleConnect();
     },
     /** 保存连接配置（只保存用户名和密码） */
     saveConnectionConfig() {
@@ -490,12 +510,6 @@ export default {
 
               // 订阅主题
               this.subscribeTopics(username);
-
-              // 启动定时保存（每30秒保存一次）
-              this.startAutoSave();
-
-              // 初始加载历史数据
-              this.getList();
             });
 
             // 连接失败
@@ -660,13 +674,11 @@ export default {
           if (data.status) {
             this.$set(device, 'deviceStatus', data.status === 'online' ? '在线' : '离线');
             this.$set(device, 'lastOnline', new Date());
-            this.dataChanged = true;
           }
           // 同时尝试从状态消息里更新脚本状态（如果客户端在这里返回）
           const rawScriptStatus = this.getRawScriptStatus(data);
           if (rawScriptStatus !== undefined) {
             this.$set(device, 'scriptStatus', this.normalizeScriptStatus(rawScriptStatus));
-            this.dataChanged = true;
           }
         }
         // 处理响应消息（命令执行结果）
@@ -675,7 +687,6 @@ export default {
           const rawScriptStatus = this.getRawScriptStatus(data);
           if (rawScriptStatus !== undefined) {
             this.$set(device, 'scriptStatus', this.normalizeScriptStatus(rawScriptStatus));
-            this.dataChanged = true;
           }
         }
         // 处理配置消息
@@ -706,8 +717,6 @@ export default {
               if (statusRaw !== undefined) {
                 this.$set(device, 'scriptStatus', this.normalizeScriptStatus(statusRaw));
               }
-
-              this.dataChanged = true;
             } catch (e) {
               console.error('解析msg字段失败:', e, data.msg);
             }
@@ -763,58 +772,6 @@ export default {
       this.statistics.totalDevices = devices.length;
       this.statistics.onlineDevices = devices.filter(d => d.deviceStatus === '在线').length;
       this.statistics.offlineDevices = devices.filter(d => d.deviceStatus === '离线').length;
-
-      // 计算钻石总数
-      let totalDiamonds = 0;
-      devices.forEach(d => {
-        const diamonds = parseInt(d.diamonds);
-        if (!isNaN(diamonds)) {
-          totalDiamonds += diamonds;
-        }
-      });
-      this.statistics.totalDiamonds = totalDiamonds;
-    },
-    /** 启动自动保存 */
-    startAutoSave() {
-      if (this.saveTimer) {
-        clearInterval(this.saveTimer);
-      }
-      // 每30秒保存一次到数据库
-      this.saveTimer = setInterval(() => {
-        if (this.dataChanged) {
-          this.saveToDatabase();
-        }
-      }, 30000);
-    },
-    /** 保存到数据库 */
-    saveToDatabase() {
-      if (!this.dataChanged) return;
-
-      const devices = Object.values(this.realtimeDevices);
-      if (devices.length === 0) return;
-
-      // 将 lastOnline 转成后端需要的字符串格式 yyyy-MM-dd HH:mm:ss
-      const payloadDevices = devices.map(d => {
-          const device = { ...d };
-          if (device.lastOnline) {
-            try {
-              device.lastOnline = parseTime(device.lastOnline, '{y}-{m}-{d} {h}:{i}:{s}');
-            } catch (e) {
-              console.error('格式化 lastOnline 失败:', e, device.lastOnline);
-              device.lastOnline = null;
-            }
-          } else {
-            device.lastOnline = null;
-          }
-          return device;
-        });
-
-      // 调用后端API批量保存
-      batchSaveDevices(payloadDevices).then(() => {
-        this.dataChanged = false;
-      }).catch(error => {
-        console.error('设备数据保存失败:', error);
-      });
     },
     /** 发送MQTT命令 */
     publishCommand(deviceName, action, params = {}) {
@@ -844,17 +801,6 @@ export default {
     /** 断开连接 */
     handleDisconnect() {
       this.$modal.confirm('是否确认断开MQTT连接？').then(() => {
-        // 先保存数据
-        if (this.dataChanged) {
-          this.saveToDatabase();
-        }
-
-        // 清除定时器
-        if (this.saveTimer) {
-          clearInterval(this.saveTimer);
-          this.saveTimer = null;
-        }
-
         if (this.mqttClient) {
           this.mqttClient.end();
           this.mqttClient = null;
@@ -864,39 +810,14 @@ export default {
         this.$modal.msgSuccess("MQTT连接已断开");
       }).catch(() => {});
     },
-    /** 查询设备列表 */
+    /** 查询设备列表（仅基于MQTT保留消息） */
     getList() {
-      // 如果已连接MQTT，使用实时数据
-      if (this.isConnected) {
-        this.updateDeviceList();
-        return;
-      }
-
-      // 未连接时，从数据库加载历史数据
       this.loading = true;
-      listDevice(this.queryParams).then(response => {
-        this.deviceList = response.rows;
-        this.total = response.total;
-        this.loading = false;
-
-        // 将历史数据加载到realtimeDevices
-        response.rows.forEach(device => {
-          this.$set(this.realtimeDevices, device.deviceName, { ...device });
-        });
-      });
+      this.updateDeviceList();
     },
-    /** 获取统计信息 */
+    /** 获取统计信息（仅基于MQTT保留消息） */
     getStatistics() {
-      // 如果已连接MQTT，使用实时统计
-      if (this.isConnected) {
-        this.updateStatistics();
-        return;
-      }
-
-      // 未连接时，从数据库获取统计
-      getStatistics().then(response => {
-        this.statistics = response.data;
-      });
+      this.updateStatistics();
     },
     /** 刷新数据（列表+统计+主动请求状态） */
     refreshData() {
@@ -971,13 +892,14 @@ export default {
     },
     /** 删除按钮操作 */
     handleDelete(row) {
-      const deviceIds = row.deviceId || this.ids;
+      const deviceNames = row && row.deviceName ? [row.deviceName] : this.deviceNames;
       this.$modal.confirm('是否确认删除选中的设备？').then(() => {
-        return delDevice(deviceIds);
-      }).then(() => {
-        this.getList();
-        this.getStatistics();
-        this.$modal.msgSuccess("删除成功");
+        deviceNames.forEach((name) => {
+          this.$delete(this.realtimeDevices, name);
+        });
+        this.updateDeviceList();
+        this.updateStatistics();
+        this.$modal.msgSuccess("删除成功（仅本地视图）");
       }).catch(() => {});
     },
     /** 投屏控制 */
