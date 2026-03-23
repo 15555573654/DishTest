@@ -1,10 +1,9 @@
 package com.ruoyi.web.controller.mqtt;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,10 +22,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.SecurityUtils;
-import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.system.domain.MqttDevice;
-import com.ruoyi.system.domain.vo.MqttDeviceStatistics;
-import com.ruoyi.system.service.IDeviceManagerService;
 import com.ruoyi.system.service.IMqttOperationLogService;
 
 /**
@@ -40,9 +36,6 @@ import com.ruoyi.system.service.IMqttOperationLogService;
 public class MqttDeviceController extends BaseController
 {
     @Autowired
-    private IDeviceManagerService deviceManagerService;
-
-    @Autowired
     private IMqttOperationLogService operationLogService;
 
     /**
@@ -52,11 +45,7 @@ public class MqttDeviceController extends BaseController
     @GetMapping("/list")
     public TableDataInfo list(MqttDevice mqttDevice)
     {
-        startPage();
-        // 不按用户名过滤，显示所有设备
-        // mqttDevice.setUsername(SecurityUtils.getUsername());
-        List<MqttDevice> list = deviceManagerService.selectMqttDeviceList(mqttDevice);
-        return getDataTable(list);
+        return getDataTable(java.util.Collections.emptyList());
     }
 
     /**
@@ -65,13 +54,9 @@ public class MqttDeviceController extends BaseController
     @PreAuthorize("@ss.hasPermi('mqtt:device:export')")
     @Log(title = "MQTT设备", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
-    public void export(HttpServletResponse response, MqttDevice mqttDevice)
+    public AjaxResult export(MqttDevice mqttDevice)
     {
-        // 不按用户名过滤，导出所有设备
-        // mqttDevice.setUsername(SecurityUtils.getUsername());
-        List<MqttDevice> list = deviceManagerService.selectMqttDeviceList(mqttDevice);
-        ExcelUtil<MqttDevice> util = new ExcelUtil<>(MqttDevice.class);
-        util.exportExcel(response, list, "MQTT设备数据");
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再使用数据库导出");
     }
 
     /**
@@ -81,7 +66,7 @@ public class MqttDeviceController extends BaseController
     @GetMapping(value = "/{deviceId}")
     public AjaxResult getInfo(@PathVariable("deviceId") Long deviceId)
     {
-        return success(deviceManagerService.selectMqttDeviceByDeviceId(deviceId));
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再查询数据库");
     }
 
     /**
@@ -92,9 +77,7 @@ public class MqttDeviceController extends BaseController
     @PostMapping
     public AjaxResult add(@RequestBody MqttDevice mqttDevice)
     {
-        mqttDevice.setUsername(SecurityUtils.getUsername());
-        mqttDevice.setCreateBy(SecurityUtils.getUsername());
-        return toAjax(deviceManagerService.insertMqttDevice(mqttDevice));
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再入库");
     }
 
     /**
@@ -105,8 +88,7 @@ public class MqttDeviceController extends BaseController
     @PutMapping
     public AjaxResult edit(@RequestBody MqttDevice mqttDevice)
     {
-        mqttDevice.setUpdateBy(SecurityUtils.getUsername());
-        return toAjax(deviceManagerService.updateMqttDevice(mqttDevice));
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再入库");
     }
 
     /**
@@ -118,26 +100,10 @@ public class MqttDeviceController extends BaseController
     public AjaxResult remove(@PathVariable Long[] deviceIds)
     {
         String username = SecurityUtils.getUsername();
-
-        // 获取设备名称列表
-        StringBuilder deviceNames = new StringBuilder();
-        for (Long deviceId : deviceIds)
-        {
-            MqttDevice device = deviceManagerService.selectMqttDeviceByDeviceId(deviceId);
-            if (device != null)
-            {
-                deviceNames.append(device.getDeviceName()).append(",");
-            }
-        }
-
-        int result = deviceManagerService.deleteMqttDeviceByDeviceIds(deviceIds);
-
-        // 记录操作日志
-        operationLogService.logOperation(username, "删除设备", deviceNames.toString(),
-                                        "删除设备ID: " + Arrays.toString(deviceIds),
-                                        result > 0 ? "成功" : "失败", null);
-
-        return toAjax(result);
+        operationLogService.logOperation(username, "删除设备(停用)", "",
+                                        "忽略数据库删除请求: " + Arrays.toString(deviceIds),
+                                        "成功", null);
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再删除数据库记录");
     }
 
     /**
@@ -173,9 +139,12 @@ public class MqttDeviceController extends BaseController
     @GetMapping("/statistics")
     public AjaxResult getStatistics()
     {
-        // 不按用户名过滤，统计所有设备
-        MqttDeviceStatistics statistics = deviceManagerService.getStatistics(null);
-        return success(statistics);
+        Map<String, Object> data = new HashMap<>();
+        data.put("totalDevices", 0);
+        data.put("onlineDevices", 0);
+        data.put("offlineDevices", 0);
+        data.put("totalDiamonds", 0);
+        return success(data);
     }
 
     /**
@@ -186,43 +155,6 @@ public class MqttDeviceController extends BaseController
     @PostMapping("/batchSave")
     public AjaxResult batchSave(@RequestBody List<MqttDevice> devices)
     {
-        if (devices == null || devices.isEmpty())
-        {
-            return error("设备列表不能为空");
-        }
-
-        String username = SecurityUtils.getUsername();
-        int successCount = 0;
-
-        for (MqttDevice device : devices)
-        {
-            try
-            {
-                // 检查设备是否存在
-                MqttDevice existingDevice = deviceManagerService.selectMqttDeviceByName(device.getDeviceName());
-
-                if (existingDevice != null)
-                {
-                    // 更新现有设备
-                    device.setDeviceId(existingDevice.getDeviceId());
-                    device.setUpdateBy(username);
-                    deviceManagerService.updateMqttDevice(device);
-                }
-                else
-                {
-                    // 新增设备
-                    device.setCreateBy(username);
-                    device.setUsername(username);
-                    deviceManagerService.insertMqttDevice(device);
-                }
-                successCount++;
-            }
-            catch (Exception e)
-            {
-                logger.error("保存设备失败: deviceName={}", device.getDeviceName(), e);
-            }
-        }
-
-        return success("成功保存 " + successCount + " 个设备");
+        return error("该接口已停用：设备管理改为仅读取MQTT保留消息，不再入库");
     }
 }
