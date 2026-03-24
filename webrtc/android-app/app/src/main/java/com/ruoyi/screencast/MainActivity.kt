@@ -61,18 +61,15 @@ class MainActivity : AppCompatActivity() {
         // 应用启动时就请求屏幕捕获权限
         requestScreenCapturePermissionOnStartup()
         
+        // 自动连接MQTT（延迟2秒，等待UI初始化完成）
+        binding.root.postDelayed({
+            autoConnectMqtt()
+        }, 2000)
+        
         log("应用启动成功")
     }
     
     private fun setupListeners() {
-        binding.btnConnect.setOnClickListener {
-            connectMqtt()
-        }
-        
-        binding.btnDisconnect.setOnClickListener {
-            disconnectMqtt()
-        }
-        
         binding.btnStartScreen.setOnClickListener {
             if (binding.btnStartScreen.text == "开始投屏") {
                 if (pendingScreenCaptureData != null) {
@@ -116,6 +113,13 @@ class MainActivity : AppCompatActivity() {
         mqttManager.setStatusCallback { status ->
             runOnUiThread {
                 binding.tvMqttStatus.text = "状态: $status"
+                
+                // 根据连接状态启用/禁用投屏按钮
+                if (status == "已连接") {
+                    binding.btnStartScreen.isEnabled = true
+                } else if (status == "连接失败" || status == "已断开") {
+                    binding.btnStartScreen.isEnabled = false
+                }
             }
         }
         
@@ -182,23 +186,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    private fun connectMqtt() {
-        val host = binding.etMqttHost.text.toString()
-        val port = binding.etMqttPort.text.toString()
+    private fun autoConnectMqtt() {
+        // 使用固定的服务器配置
+        val host = "150.158.128.73"
+        val port = 1883
         val username = binding.etUsername.text.toString()
         val password = binding.etPassword.text.toString()
         val deviceName = binding.etDeviceName.text.toString()
         
-        if (host.isEmpty() || port.isEmpty() || username.isEmpty() || password.isEmpty() || deviceName.isEmpty()) {
-            Toast.makeText(this, "请填写完整信息", Toast.LENGTH_SHORT).show()
+        if (username.isEmpty() || password.isEmpty() || deviceName.isEmpty()) {
+            log("⚠️ 请填写用户名、密码和设备名称")
+            Toast.makeText(this, "请填写用户名、密码和设备名称", Toast.LENGTH_SHORT).show()
             return
         }
         
-        mqttManager.connect(host, port.toInt(), username, password, deviceName) { success ->
+        log("🔄 正在自动连接到服务器...")
+        connectMqtt(host, port, username, password, deviceName)
+    }
+    
+    private fun connectMqtt(host: String, port: Int, username: String, password: String, deviceName: String) {
+        mqttManager.connect(host, port, username, password, deviceName) { success ->
             runOnUiThread {
                 if (success) {
-                    binding.btnConnect.isEnabled = false
-                    binding.btnDisconnect.isEnabled = true
                     binding.btnStartScreen.isEnabled = true
                     
                     webrtcManager.setMqttManager(mqttManager)
@@ -217,8 +226,11 @@ class MainActivity : AppCompatActivity() {
                     
                     // 订阅文件浏览主题
                     subscribeFileBrowserTopic(username, deviceName)
+                    
+                    log("✅ MQTT连接成功")
                 } else {
-                    Toast.makeText(this, "连接失败", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "连接失败，请检查网络或账号信息", Toast.LENGTH_LONG).show()
+                    log("❌ MQTT连接失败")
                 }
             }
         }
@@ -228,8 +240,6 @@ class MainActivity : AppCompatActivity() {
         mqttManager.disconnect()
         webrtcManager.release()
         stopScreenCaptureService()
-        binding.btnConnect.isEnabled = true
-        binding.btnDisconnect.isEnabled = false
         binding.btnStartScreen.isEnabled = false
         log("已断开连接并清理资源")
     }

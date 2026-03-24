@@ -27,34 +27,10 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="MQTT配置"
+                    android:text="账号登录"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:paddingBottom="12dp" />
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="服务器地址">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etMqttHost"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="150.158.128.73" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="端口">
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etMqttPort"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="1883"
-                        android:inputType="number" />
-                </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
@@ -98,31 +74,10 @@
                     android:id="@+id/tvMqttStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="状态: 未连接"
+                    android:text="状态: 正在连接..."
                     android:padding="8dp"
                     android:background="#E3F2FD"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="8dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <Button
-                        android:id="@+id/btnConnect"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="连接"
-                        android:layout_marginEnd="8dp" />
-                    <Button
-                        android:id="@+id/btnDisconnect"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="断开"
-                        android:enabled="false" />
-                </LinearLayout>
+                    android:layout_marginTop="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
