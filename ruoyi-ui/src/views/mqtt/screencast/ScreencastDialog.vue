@@ -69,8 +69,8 @@
             <div class="toolbar-item" @click.stop="adjustDeviceVolume('down')" :class="{ disabled: !mqttClient }" title="volume down">
               <i class="el-icon-minus"></i>
             </div>
-            <div class="toolbar-item" @click.stop="toggleDialogFullscreen" :class="{ disabled: !isStreaming }" title="fullscreen dialog">
-              <i :class="isDialogFullscreen ? 'el-icon-copy-document' : 'el-icon-full-screen'"></i>
+            <div class="toolbar-item" @click.stop="toggleDialogFullscreen" :class="{ disabled: !isStreaming }" :title="isDialogFullscreen ? '退出全屏' : '全屏'">
+              <i :class="isDialogFullscreen ? 'el-icon-rank' : 'el-icon-full-screen'"></i>
             </div>
             <div class="toolbar-item" @click.stop="copyAndroidClipboardToWeb" :class="{ disabled: !mqttClient }" title="copy to web">
               <i class="el-icon-document-copy"></i>
