@@ -49,6 +49,9 @@ class MainActivity : AppCompatActivity() {
         
         Log.d(TAG, "=== MainActivity onCreate ===")
         
+        // 检查是否从崩溃恢复
+        checkCrashRecovery()
+        
         mqttManager = MqttManager(this)
         webrtcManager = WebRTCManager(this)
         apkInstallManager = ApkInstallManager(this)
@@ -108,6 +111,12 @@ class MainActivity : AppCompatActivity() {
         
         binding.btnClearLog.setOnClickListener {
             binding.tvLog.text = ""
+        }
+        
+        // 长按清空日志按钮查看崩溃日志
+        binding.btnClearLog.setOnLongClickListener {
+            openCrashLogs()
+            true
         }
         
         mqttManager.setStatusCallback { status ->
@@ -208,13 +217,14 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun connectMqtt(host: String, port: Int, username: String, password: String, deviceName: String) {
+        // 在连接MQTT之前就设置WebRTCManager，确保消息回调已就绪
+        webrtcManager.setMqttManager(mqttManager)
+        webrtcManager.setDeviceInfo(username, deviceName)
+        
         mqttManager.connect(host, port, username, password, deviceName) { success ->
             runOnUiThread {
                 if (success) {
                     binding.btnStartScreen.isEnabled = true
-                    
-                    webrtcManager.setMqttManager(mqttManager)
-                    webrtcManager.setDeviceInfo(username, deviceName)
                     
                     // 设置APK安装管理器的日志回调
                     apkInstallManager.setLogCallback { message ->
@@ -292,7 +302,8 @@ class MainActivity : AppCompatActivity() {
                 log("Reusing existing ScreenCaptureService")
             }
 
-            val startDelayMs = if (hasRunningService || hasRetainedCapture) 200L else 1500L
+            // WebRTCManager会等待服务就绪，所以这里只需要短暂延迟
+            val startDelayMs = if (hasRunningService || hasRetainedCapture) 100L else 500L
             binding.root.postDelayed({
                 try {
                     webrtcManager.startCapture(pendingScreenCaptureResultCode, pendingScreenCaptureData!!)
@@ -659,6 +670,37 @@ class MainActivity : AppCompatActivity() {
             binding.root.postDelayed({
                 webrtcManager.handleOrientationChange()
             }, 500)
+        }
+    }
+    
+    /**
+     * 检查是否从崩溃恢复
+     */
+    private fun checkCrashRecovery() {
+        val crashed = intent.getBooleanExtra("crashed", false)
+        val crashCount = intent.getIntExtra("crash_count", 0)
+        val restartedByGuard = intent.getBooleanExtra("restarted_by_guard", false)
+        
+        if (crashed) {
+            log("⚠️ 应用已从崩溃中恢复 (第${crashCount}次)")
+            Toast.makeText(this, "应用已从崩溃中恢复", Toast.LENGTH_LONG).show()
+        }
+        
+        if (restartedByGuard) {
+            log("🛡️ 应用由守护进程重启")
+            Toast.makeText(this, "应用已自动重启", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 打开崩溃日志查看页面
+     */
+    private fun openCrashLogs() {
+        try {
+            val intent = Intent(this, com.ruoyi.screencast.crash.CrashLogActivity::class.java)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "打开崩溃日志失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }

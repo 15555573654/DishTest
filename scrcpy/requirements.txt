@@ -1,0 +1,10 @@
+Django==4.2.1
+channels==4.0.0
+django-simpleui==2023.3.1
+djangorestframework==3.14.0
+django-import-export==3.2.0
+adbutils==1.2.9
+uvicorn[standard]
+pytz
+aiofiles
+django-ninja

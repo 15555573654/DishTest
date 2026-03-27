@@ -18,11 +18,13 @@
     
     <!-- Android 14+ 前台服务类型权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
+        android:name=".ScreencastApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -40,11 +42,23 @@
             </intent-filter>
         </activity>
         
+        <activity
+            android:name=".crash.CrashLogActivity"
+            android:exported="false"
+            android:label="崩溃日志" />
+        
         <service
             android:name=".service.ScreenCaptureService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+        
+        <service
+            android:name=".crash.ProcessGuardService"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":guard"
+            android:foregroundServiceType="dataSync" />
         
         <service
             android:name=".service.AccessibilityControlService"

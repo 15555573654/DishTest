@@ -96,10 +96,25 @@ class WebRTCManager(private val context: Context) {
     fun startCapture(resultCode: Int, data: Intent) {
         try {
             screenCaptureIntent = data
-            val service = com.ruoyi.screencast.service.ScreenCaptureService.instance
-            if (service == null) {
-                throw RuntimeException("ScreenCaptureService not running - MediaProjection requires foreground service")
+            
+            // 等待服务就绪，最多等待3秒
+            var retryCount = 0
+            val maxRetries = 30 // 30次 * 100ms = 3秒
+            while (ScreenCaptureService.instance == null && retryCount < maxRetries) {
+                Thread.sleep(100)
+                retryCount++
+                if (retryCount % 10 == 0) {
+                    logCallback?.invoke("等待ScreenCaptureService启动... (${retryCount * 100}ms)")
+                }
             }
+            
+            val service = ScreenCaptureService.instance
+            if (service == null) {
+                throw RuntimeException("ScreenCaptureService not running after ${maxRetries * 100}ms - MediaProjection requires foreground service")
+            }
+            
+            logCallback?.invoke("✓ ScreenCaptureService已就绪")
+            
             val displayInfo = getDisplayInfo()
             activeCaptureConfig = requestedCaptureConfig.resolve(displayInfo)
             sendDeviceResolution(displayInfo)

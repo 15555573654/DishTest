@@ -1,0 +1,8 @@
+adb工具在platform-tools文件夹,电脑通过cmd命令行开启adb服务。
+手机开启开发者模式和usb调试并连接到adb，电脑端输入adb devices能看到连接的手机。
+上善若水云控开发定制
+QQ532947750
+
+1.点击运行 start.bat
+2.chrome浏览器访问：http://127.0.0.1:8000/admin/
+3.登陆管理端 root/123

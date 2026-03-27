@@ -1,0 +1,1020 @@
+<html>
+  <head>
+    <title>{{title}}-screen</title>
+    <style type="text/css">
+      *{
+            margin: 0;
+          padding: 0;
+          }
+        button{
+          background-color: #fff;
+         border-radius: 4px;
+          border: 1px solid #cccccc;
+        }
+         button:hover{
+          background-color: #cccccc;
+        }
+        .btnList button{
+          margin-top: 5px;
+        }
+      body{padding: 5px!important;}
+      .player_duration{
+        color: red;
+      }
+    </style>
+  </head>
+  <body onselectstart="return false;" unselectable="on">
+    <div style="margin-left: auto; margin-right: auto;">
+      <div id="code_msg" style="color: red;">无</div>
+      <div>
+        <div style="padding: 3;">设备:{{Screen_title}} 时长: <span class="player_duration" id="player_duration">0</span>秒 到期时间:<span class="player_duration">{{stop_time|date:"Y-m-d" }}</span>
+          <span style="height:33px;">
+             模式
+          <select id="video_play_select" style="width:100px;height:30px;vertical-align: middle;">
+            <option value="broardway">broardway</option>
+            <option value="broardway2">broardway2</option>
+          </select>
+
+          <button id="reload_button" style="padding:0;vertical-align: middle;">
+            <?xml version="1.0" encoding="UTF-8"?>
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M42 8V24" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+              <path d="M6 24L6 40" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+              <path d="M42 24C42 14.0589 33.9411 6 24 6C18.9145 6 14.3216 8.10896 11.0481 11.5M6 24C6 33.9411 14.0589 42 24 42C28.8556 42 33.2622 40.0774 36.5 36.9519" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+            </svg>
+          </button>
+          </span>
+        </div>
+        <div id='container' style="display: inline-block;border: 1px solid #cccccc;"></div>
+        <div style="display: inline-block; vertical-align:top;" class="btnList">
+
+
+          <!--  
+    <button id="sw-state">sw-on</button>
+  -->
+
+
+          <div>
+            <button id="get_clipboard_button" title="复制剪切板" style="margin-top: -2px;">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13 38H41V16H30V4H13V38Z" fill="none" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M30 4L41 16" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M7 20V44H28" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M19 20H23" stroke="#009688" stroke-width="4" stroke-linecap="round" />
+                <path d="M19 28H31" stroke="#009688" stroke-width="4" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div>
+            <button id="set_clipboard_button" title="设置剪切板">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M42 26V40C42 41.1046 41.1046 42 40 42H8C6.89543 42 6 41.1046 6 40V8C6 6.89543 6.89543 6 8 6L22 6" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M14 26.7199V34H21.3172L42 13.3081L34.6951 6L14 26.7199Z" fill="none" stroke="#009688" stroke-width="4" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div>
+            <input id="menu_checkbox" type="checkbox" value="82" style="display: none;" />
+            <button id="menu_button" title="菜单">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7.94971 11.9497H39.9497" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+                <path d="M7.94971 23.9497H39.9497" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+                <path d="M7.94971 35.9497H39.9497" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+              </svg>
+            </button>
+            </br>
+
+            <input id="home_checkbox" type="checkbox" value="3" style="display: none;" />
+            <button id="home_button" title="首页">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 18V42H39V18L24 6L9 18Z" fill="none" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+                <path d="M19 29V42H29V29H19Z" fill="none" stroke="#009688" stroke-width="4" stroke-linejoin="bevel" />
+                <path d="M9 42H39" stroke="#009688" stroke-width="4" stroke-linecap="round" />
+              </svg>
+            </button>
+            </br>
+
+            <input id="back_checkbox" type="checkbox" value="4" style="display: none;" />
+            <button id="back_button" title="返回">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M44 40.8361C39.1069 34.8632 34.7617 31.4739 30.9644 30.6682C27.1671 29.8625 23.5517 29.7408 20.1182 30.303V41L4 23.5453L20.1182 7V17.167C26.4667 17.2172 31.8638 19.4948 36.3095 24C40.7553 28.5052 43.3187 34.1172 44 40.8361Z" fill="none" stroke="#009688" stroke-width="4" stroke-linejoin="bevel" />
+              </svg>
+            </button>
+          </div>
+          <div>
+            <button id="reload_volume" style="padding:0;display: none;">
+              <?xml version="1.0" standalone="no"?>
+              <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+              <svg t="1686225269004" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="9260" xmlns:xlink="http://www.w3.org/1999/xlink" width="15" height="15">
+                <path d="M848.738462 608.137846c-8.467692 178.097231-155.963077 319.881846-336.659693 319.881846-186.171077 0-337.132308-150.449231-337.132307-336.068923 0-180.145231 142.178462-327.168 320.787692-335.675077v159.82277l353.122461-192.039385L495.734154 0v160.098462C263.995077 168.684308 78.769231 358.754462 78.769231 591.872 78.769231 830.542769 272.777846 1024 512.157538 1024 746.062769 1024 936.644923 839.286154 945.230769 608.137846h-96.492307z" fill="#28A2FF" p-id="9261"></path>
+              </svg>
+            </button>
+
+            <input id="v+_checkbox" type="checkbox" value="24" style="display: none;" />
+            <button id="v+_button" title="音量+">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M24 6V42C17 42 11.7985 32.8391 11.7985 32.8391H6C4.89543 32.8391 4 31.9437 4 30.8391V17.0108C4 15.9062 4.89543 15.0108 6 15.0108H11.7985C11.7985 15.0108 17 6 24 6Z" fill="none" stroke="#009688" stroke-width="4" stroke-linejoin="bevel" />
+                <path d="M32 24H44" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+                <path d="M38 18V30" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+              </svg>
+            </button>
+            </br>
+            <input id="v-_checkbox" type="checkbox" value="25" style="display: none;" />
+            <button id="v-_button" title="音量-">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M24 6V42C17 42 11.7985 32.8391 11.7985 32.8391H6C4.89543 32.8391 4 31.9437 4 30.8391V17.0108C4 15.9062 4.89543 15.0108 6 15.0108H11.7985C11.7985 15.0108 17 6 24 6Z" fill="none" stroke="#009688" stroke-width="4" stroke-linejoin="bevel" />
+                <path d="M32 24H44" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+              </svg>
+            </button>
+            </br>
+            <input id="power_checkbox" type="checkbox" value="26" style="display: none;" />
+            <button id="power_button" title="音量+">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M40 20C40 26.8077 35.7484 32.6224 29.7555 34.9336H24H18.2445C12.2516 32.6224 8 26.8077 8 20C8 11.1634 15.1634 4 24 4C32.8366 4 40 11.1634 40 20Z" fill="none" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+                <path d="M29.7557 34.9336L29.0766 43.0831C29.0334 43.6014 28.6001 44 28.08 44H19.9203C19.4002 44 18.9669 43.6014 18.9238 43.0831L18.2446 34.9336" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+                <path d="M18 17V23L24 20L30 23V17" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="bevel" />
+              </svg>
+            </button>
+          </div>
+          <div>
+            <button id="updatafile" title="安装" test-active="test-form">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M39 6H9C7.34315 6 6 7.34315 6 9V39C6 40.6569 7.34315 42 9 42H39C40.6569 42 42 40.6569 42 39V9C42 7.34315 40.6569 6 39 6Z" fill="none" stroke="#009688" stroke-width="4" stroke-linejoin="round" />
+                <path d="M32 28L24 20L16 28" stroke="#009688" stroke-width="4" stroke-linecap="butt" stroke-linejoin="round" />
+                <path d="M24 36V20.5" stroke="#009688" stroke-width="4" stroke-linecap="butt" stroke-linejoin="round" />
+                <path d="M16 14H32" stroke="#009688" stroke-width="4" stroke-linecap="butt" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <div>
+            <button id="deldata" title="删除">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 11L4 24L14 37H44V11H14Z" fill="none" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M21 19L31 29" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M31 19L21 29" stroke="#009688" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+
+        </div>
+        <script type="text/javascript" src="/static/general/js/Decoder.js"></script>
+        <script type="text/javascript" src="/static/general/js/YUVCanvas.js"></script>
+        <script type="text/javascript" src="/static/general/js/Player.js"></script>
+        <script type="text/javascript" src="/static/general/js/pcm-player.min.js"></script>
+        <link rel="stylesheet" href="/static/general/layui/css/layui.css">
+        <script src="/static/general/layui/layui.js"></script>
+        <script type="module">
+          import { h264ParseConfiguration} from "/static/general/js/h264_parse.js";
+  import { h265ParseConfiguration} from "/static/general/js/h265_parse.js";
+  window.h264ParseConfiguration = h264ParseConfiguration
+  window.h265ParseConfiguration = h265ParseConfiguration
+</script>
+        <script>
+          layui.use(function(){
+            var layer = layui.layer;
+            var form = layui.form;
+              var util = layui.util;
+            var upload = layui.upload; 
+            // 欢迎信息
+           
+           
+            // 触发事件
+            util.on('test-active', {
+              'test-form': function(){
+                layer.open({
+                  type: 1,
+                  resize: false,
+                  shadeClose: true,
+                  area: '350px',
+                  title: '安装APK',
+                  content: ['<ul class="layui-form layui-form-pane" style="margin: 15px;">',
+                    '<input type="hidden" name="destination" id="destination" value="/sdcard">',
+                   '<li class="layui-form-item">',
+                      '<label class="layui-form-label">安装包</label>',
+                      '<div class="layui-input-block">',
+                        ' <button type="button" class="layui-btn layui-btn-normal" id="test8">选择APK</button>',
+                      '</div>',
+                    '</li>',
+                    '<li class="layui-form-item" style="text-align:center;">',
+                      '<button type="button" class="layui-btn layui-btn-fluid" id="test9">立即安装</button>',
+                    '</li>',
+                  '</ul>'].join(''),
+                  success: function(layero, index){
+                    layero.find('.layui-layer-content').css('overflow', 'visible');
+                    
+                    form.render().on('submit(*)', function(data){
+                      var field = data.field;
+                      
+                      // 显示填写的表单
+                      layer.msg(util.escape(JSON.stringify(field)), {
+                        icon: 1
+                      });
+                      // layer.close(index); //关闭层
+                    });
+                  }
+                });
+                //选完文件后不自动上传
+            upload.render({
+              elem: '#test8'
+              ,url: '/api/v1/general/mobile/{{device_id}}/filemanager/uploadapk/' //此处配置你自己的上传接口即可
+              ,accept:'file'
+              ,auto: false
+              //,multiple: true
+              ,bindAction: '#test9'
+              ,headers: {"X-CSRFToken": '{{ csrf_token }}'}
+              ,field: 'file-0'
+              ,data: {
+            destination: function(){
+               var selectVal = "/sdcard";
+              return selectVal; 
+            }
+          }
+              ,done: function(res){
+               layer.msg("上传成功", {icon:6,time: 1500 }, function(){layer.closeAll();});
+                console.log(res)
+              }
+            });
+              }
+            });
+          });
+        </script>
+        <script>
+          var intcanvasWidth = 0;
+            var intcanvasHeight = 0;
+            function AllSend(SendData,canvasView,pid){
+              var intPid = "Screen_{{Screen_id}}";
+              if(intPid===pid){
+                // console.log(pid,"主控消息不转发");
+              }else{
+                console.log("屏幕大小",intcanvasWidth,intcanvasHeight);
+                parsedObject = JSON.parse(SendData);
+                if(parsedObject.resolution){
+                  parsedObject.resolution=[intcanvasWidth,intcanvasHeight];
+                }
+                
+                console.log("转发消息",SendData,parsedObject);
+          
+                ws.send(JSON.stringify(parsedObject));
+              }
+                  //ws.send(SendData)
+                }
+          
+                // 0.keycode事件
+                function inject_keycode(keycode, action){
+                  msg = {
+                    msg_type: 0,
+                    keycode: keycode,
+                    action: action
+                  }
+                  ws.send(JSON.stringify(msg))
+                   if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 1.text事件
+                function inject_text(text){
+                  msg = {
+                    msg_type: 1,
+                    text: text,
+                  }
+                  ws.send(JSON.stringify(msg))
+                  if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 2.touch事件
+                function inject_touch_event(pix_data, action){
+                  msg = {
+                    msg_type: 2,
+                    action: action,
+                    resolution: window.canvas_resolution,
+                    x: pix_data[0],
+                    y: pix_data[1],
+                  }
+                  ws.send(JSON.stringify(msg))
+          
+                 if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 3.scroll事件
+                function inject_scroll_event(pix_data){
+                  msg = {
+                    msg_type: 3,
+                    x: pix_data[0],
+                    y: pix_data[1],
+                    resolution: window.canvas_resolution,
+                    distance_x: pix_data[2],
+                    distance_y: pix_data[3],
+                  }
+                  ws.send(JSON.stringify(msg))
+                  if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 8.get_clipboard
+                function get_clipboard(copy_key=1){
+                  msg = {
+                    msg_type: 8,
+                    copy_key: copy_key
+                  }
+                  ws.send(JSON.stringify(msg))
+                  if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 9.set_clipboard
+                function set_clipboard(text, sequence=1, paste=true){
+                  msg = {
+                    msg_type: 9,
+                    text: text,
+                    sequence: sequence,
+                    paste: paste
+                  }
+                  ws.send(JSON.stringify(msg))
+                  if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 10.sw
+                function toggle_sw(){
+                  if (this.textContent=='sw-on'){
+                    screen_power_mode=0
+                    this.textContent='sw-off'
+                  }
+                  else{
+                    screen_power_mode=2
+                    this.textContent='sw-on'
+                  }
+                  msg = {
+                    msg_type: 10,
+                    screen_power_mode: window.screen_power_mode,
+                  }
+                  ws.send(JSON.stringify(msg))
+                 if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                }
+          
+                // 30.swipe
+                function swipe(pix_data, delay=0, unit=13){
+                  delay = parseFloat(delay.toFixed(2))
+                  if (delay <= 3 && delay >=0){
+                    msg = {
+                      msg_type: 30,
+                      x: pix_data[0],
+                      y: pix_data[1],
+                      resolution: window.canvas_resolution,
+                      end_x: pix_data[2],
+                      end_y: pix_data[3],
+                      unit: unit,
+                      delay: delay,
+                    }
+                    ws.send(JSON.stringify(msg))
+                    if (window.frameElement && window.frameElement.tagName === 'IFRAME'){
+                   window.parent.Sendcall(JSON.stringify(msg),[intcanvasWidth,intcanvasHeight], "Screen_{{Screen_id}}");
+                   }
+                  }
+                }
+          
+                // 999.update_resolution
+                function update_resolution(){
+                  msg = {
+                    msg_type: 999,
+                    resolution: window.canvas_resolution,
+                  }
+                  ws.send(JSON.stringify(msg))
+                }
+        </script>
+        <script>
+          // 节流函数
+                function throttle(fn,during) {
+                  let t = null
+                  return function(e){
+                      if(!t){
+                          t = setTimeout(()=>{
+                              fn.call(this,e)
+                              t = null
+                          },during)
+                      }
+                  }
+                }
+          
+                // 获取鼠标在元素内的坐标
+                function get_pointer_position(event, ele){
+                  x = event.clientX - ele.offsetLeft + window.scrollX;
+                  x = parseInt(x);
+                  x = Math.min(x, ele.width);
+                  x = Math.max(x, 0);
+                  y = event.clientY - ele.offsetTop + window.scrollY;
+                  y = parseInt(y);
+                  y = Math.min(y, ele.height);
+                  y = Math.max(y, 0);
+                  return [x, y]
+                }
+          
+                // canvas鼠标移动事件处理函数
+                function canvas_mouse_move(event) {
+                    pix_data = get_pointer_position(event, this)
+                    inject_touch_event(pix_data, 2)
+                }
+          
+                // touch事件
+                function add_canvas_touch_event(ele){
+                    // 在window对象记录touch开始
+                    window.touch_start = null
+                    // 节流的mouse_move
+                    efficient_canvas_mouse_move = throttle(canvas_mouse_move, 15);
+                    // 1.mousedown
+                   ele.addEventListener('mousedown', function (event) {
+                      if(event.buttons == 1){
+                        window.touch_start = true
+                        this.removeEventListener("mousemove", efficient_canvas_mouse_move)
+                        pix_data = get_pointer_position(event, this)
+                        inject_touch_event(pix_data, 0)
+                        this.addEventListener('mousemove', efficient_canvas_mouse_move)
+                      }
+                    })
+                    // 2.mouseup
+                   ele.addEventListener('mouseup', function (event) {
+                      if (window.touch_start){
+                        window.touch_start = false
+                        pix_data = get_pointer_position(event, this)
+                        inject_touch_event(pix_data, 1)
+                        this.removeEventListener("mousemove", efficient_canvas_mouse_move)
+                      }
+                  })
+                    // 3.mouseout
+                  ele.addEventListener('mouseout', function (event) {
+                      if (window.touch_start){
+                        window.touch_start = false
+                        pix_data = get_pointer_position(event, this)
+                        inject_touch_event(pix_data, 1)
+                        this.removeEventListener("mousemove", efficient_canvas_mouse_move)
+                      }
+                  })
+                }
+          
+                // swipe事件
+                function add_canvas_swipe_event(ele){
+                   window.swipe_start = null
+                   window.swipe_start_pix_data = null
+                    // 1.mousedown
+                   ele.addEventListener('mousedown', function (event) {
+                      if(event.buttons == 4){
+                        window.swipe_start = Date.now()
+                        window.swipe_start_pix_data = get_pointer_position(event, this)
+                      }
+                    })
+                    // 2.mouseup
+                   ele.addEventListener('mouseup', function (event) {
+                      if (window.swipe_start){
+                        swipe_end = Date.now()
+                        delay = (swipe_end - window.swipe_start)/1000
+                        window.swipe_start = null
+                        swipe_end_pix_data = get_pointer_position(event, this)
+                        pix_data = window.swipe_start_pix_data.concat(swipe_end_pix_data)
+                        window.swipe_start_pix_data = null
+                        swipe(pix_data, delay)
+                      }
+                  })
+                    // 3.mouseout
+                  ele.addEventListener('mouseout', function (event) {
+                      if (window.swipe_start){
+                        swipe_end = Date.now()
+                        delay = (swipe_end - window.swipe_start)/1000
+                        window.swipe_start = null
+                        swipe_end_pix_data = get_pointer_position(event, this)
+                        pix_data = window.swipe_start_pix_data.concat(swipe_end_pix_data)
+                        window.swipe_start_pix_data = null
+                        swipe(pix_data, delay)
+                      }
+                  })
+                }
+          
+                // 处理canvas mouse scroll
+                function canvas_mouse_scroll(event) {
+                  pix_data = get_pointer_position(event, this)
+                  if (event.deltaX >0){
+                    distance_x = -5
+                  } else{
+                    distance_x = 5
+                  }
+                  pix_data[2] = distance_x
+                  if (event.deltaY >0){
+                    distance_y = -5
+                  } else{
+                    distance_y = 5
+                  }
+                  pix_data[3] = distance_y
+                  inject_scroll_event(pix_data)
+                }
+          
+                // scroll事件
+                function add_canvas_scroll_event(ele){
+                  efficient_canvas_mouse_scroll = throttle(canvas_mouse_scroll, 100);
+                  ele.addEventListener("wheel", efficient_canvas_mouse_scroll)
+                }
+        </script>
+        <script>
+          function copyString(str) {
+            // 创建一个隐藏的文本输入框
+            var input = document.createElement('input');
+            input.value = str;
+            document.body.appendChild(input); 
+            // 选中文本输入框中的内容
+            input.select();
+            // 执行复制操
+            document.execCommand('copy');
+            // 移除文本输入框
+            document.body.removeChild(input);
+              alert('获取截切版成功');
+          }
+            // 处理设置剪切板
+            function button_handle_set_clipboard(){
+               layer.prompt({title: '请输入文本'}, function(value, index, elem){
+                  if(value === '') return elem.focus();
+                  set_clipboard(value)
+                  layer.msg('粘贴成功'); // 显示 value
+                  // 关闭 prompt
+                  layer.close(index);
+                });
+            }
+          
+            // 处理获取剪切板
+            function button_handle_get_clipboard(){
+              get_clipboard(1)
+            }
+          
+            // 处理截图
+            var xhr = new XMLHttpRequest();
+            function button_handle_capture(){
+                var ele = document.getElementById('capture')
+                ele.href = window.video_renderer_canvas.toDataURL()
+                ele.download = window.device_id + '_' + (new Date().formatCode()) + '.png'
+                ele.click()
+                xhr.open('POST', '/api/v1/general/picture/upload_base64/', true)
+                xhr.setRequestHeader('content-type', 'application/json');
+                xhr.withCredentials = true;
+                xhr.send(JSON.stringify({'img':ele.href, "device_id": window.device_id}))
+            }
+          
+            // 处理同时按2个键
+            function button_handle_multi_key(){
+              key_list = ['menu', 'home', 'back', 'v+', 'v-', 'power']
+              checked_key_list = []
+              for (var key of key_list){
+                checkbox = document.getElementById(key+'_checkbox')
+                if (checkbox.checked){
+                   checked_key_list.push(parseInt(checkbox.value))
+                }
+                if (checked_key_list.length==2){
+                  break
+                }
+              }
+              if (checked_key_list.length>=2){
+                inject_keycode(checked_key_list[0], 0)
+                inject_keycode(checked_key_list[1], 0)
+                inject_keycode(checked_key_list[1], 1)
+                inject_keycode(checked_key_list[0], 1)
+              }
+            }
+          
+            // 处理button长按事件
+            function add_button_mouse_event(ele, keycode){
+               button_mouse_up_down_keycode = 'add_button_mouse_event' + keycode
+               window.button_mouse_up_down_keycode = null
+               // 1.mousedown
+               ele.addEventListener('mousedown', function (event) {
+                  if(event.buttons == 1){
+                    inject_keycode(keycode, 0)
+                    window.button_mouse_up_down_keycode = true
+                  }
+                })
+                // 2.mouseup
+               ele.addEventListener('mouseup', function (event) {
+                 if (window.button_mouse_up_down_keycode){
+                   inject_keycode(keycode, 1)
+                   window.button_mouse_up_down_keycode = null
+                 }
+               })
+                // 3.mouseout
+               ele.addEventListener('mouseout', function (event) {
+                 if (window.button_mouse_up_down_keycode){
+                   inject_keycode(keycode, 1)
+                   window.button_mouse_up_down_keycode = null
+                 }
+               })
+            }
+        </script>
+        <script>
+          function load_utils(){
+                // 1 给Date对象增加时间格式化方法
+                Date.prototype.formatCode = function (formatStr = "yyyy-MM-DD HH:mm:ss") {
+                  const paddingZero = num => num >= 10 ? num : '0' + num;
+                  let str = formatStr;
+                  str = str.replace(/yyyy|YYYY/, this.getFullYear());
+                  str = str.replace(/MM/, paddingZero(this.getMonth() + 1));
+                  str = str.replace(/dd|DD/, paddingZero(this.getDate()));
+                  str = str.replace(/hh|HH/, paddingZero(this.getHours()));
+                  str = str.replace(/mm/, paddingZero(this.getMinutes()));
+                  str = str.replace(/ss/, paddingZero(this.getSeconds()));
+                  str = str.replace(/SS/, paddingZero(this.getMilliseconds()));
+                  return str;
+                };
+                // 2.记录device_id到window对象
+                window.device_id =  "{{device_id}}"
+                window.query_param = window.location.href.split('?')[1]
+                window.query_param_dict = JSON.parse(decodeURIComponent(window.query_param.split('=')[1]))
+                console.log("scrcpy_kwargs:", window.query_param_dict)
+                // 3.control support
+                
+                if (window.query_param_dict['control'] != false){
+                  add_button_mouse_event(document.getElementById('menu_button'), 82);
+                  add_button_mouse_event(document.getElementById('home_button'), 3);
+                  add_button_mouse_event(document.getElementById('back_button'), 4);
+                  add_button_mouse_event(document.getElementById('v+_button'), 24);
+                  add_button_mouse_event(document.getElementById('v-_button'), 25);
+                  add_button_mouse_event(document.getElementById('power_button'), 26);
+                  add_button_mouse_event(document.getElementById('deldata'), 67);
+                  //document.getElementById('sw-state').addEventListener('click', toggle_sw)
+                  document.getElementById('get_clipboard_button').addEventListener('click', button_handle_get_clipboard)
+                  document.getElementById('set_clipboard_button').addEventListener('click', button_handle_set_clipboard)
+                  //document.getElementById('multi-key_button').addEventListener('click', button_handle_multi_key)
+                }
+              }
+        </script>
+        <script>
+          function load_audio_player(){
+                window.audio_player = null
+                if (window.query_param_dict['audio'] != false){
+                  // 2.1 raw audio
+                  if (window.query_param_dict['audio_codec'] == 'raw'){
+                    window.audio_player = new PCMPlayer({encoding: '16bitInt', channels: 2, sampleRate: 48000, flushingTime: 70 });
+                    window.audio_player_feed = function(data){
+                      window.audio_player.feed(data)
+                    };
+                  }
+                  // 2.2 opus audio
+                  else if (window.query_param_dict['audio_codec'] == 'opus'){
+                    try{
+                      window.audio_decoder = new AudioDecoder({
+                        error(error) { console.log("audio decoder error: ", error); },
+                        output(output) {
+                            // Opus decodes to "f32",
+                            // converting to another format may cause audio glitches on Chrome.
+                            const options = { format: "f32", planeIndex: 0, };
+                            const buffer = new Float32Array( output.allocationSize(options) / Float32Array.BYTES_PER_ELEMENT );
+                            output.copyTo(buffer, options);
+                            window.audio_player.feed(buffer)
+                          },
+                      });
+                      window.audio_player = new PCMPlayer({encoding: '32bitFloat', channels: 2, sampleRate: 48000, flushingTime: 30});
+                      window.audio_decoder.configure({codec: 'opus', numberOfChannels: 2, sampleRate: 48000, })
+                      window.audio_player_feed = function(data){
+                        if (data[0] == 252){
+                          chunk = new EncodedAudioChunk({ type: "key", timestamp: 0, data: data })
+                          window.audio_decoder.decode(chunk)
+                        }
+                      }
+                    } catch (e) {
+                      document.getElementById("code_msg").style.display='block';
+                      document.getElementById("code_msg").innerHTML = "Error: no audio webcodecs support!";
+                      console.log(e)
+                      }
+                  }
+                  // 2.3 aac audio
+                  else if (window.query_param_dict['audio_codec'] == 'aac'){
+                    try{
+                      window.audio_decoder = new AudioDecoder({
+                        error(error) { console.log("audio decoder error: ", error); },
+                        output(output) {
+                            // AAC decodes to "f32-planar",
+                            // converting to another format may cause audio glitches on Chrome.
+                            const options = { format: "f32-planar", planeIndex: 0, };
+                            const planar_buffer = new Float32Array(output.allocationSize(options) / Float32Array.BYTES_PER_ELEMENT);
+                            output.copyTo(planar_buffer, options);
+                            const buffer = new Float32Array(planar_buffer.length*2)
+                            for (i = 0; i < planar_buffer.length; i++){
+                              buffer[2*i] = buffer[2*i+1] = planar_buffer[i]
+                            }
+                            window.audio_player.feed(buffer)
+                          },
+                      });
+                      window.audio_player = new PCMPlayer({encoding: '32bitFloat', channels: 2, sampleRate: 48000, flushingTime: 20});
+                      window.audio_player_feed = function(data){
+                        if (data[0]==17){
+                          window.audio_decoder.configure({codec: 'mp4a.66', numberOfChannels: 2, sampleRate: 48000, description:data})
+                        }
+                        else {
+                          chunk = new EncodedAudioChunk({ type: "key", timestamp: 0, data: data})
+                          window.audio_decoder.decode(chunk)
+                        }
+                      }
+                    } catch (e) {
+                        console.log(e)
+                        document.getElementById("code_msg").style.display='block';
+                        document.getElementById("code_msg").innerHTML = "Error: no audio webcodecs support!";
+                      }
+                  }
+                }
+              }
+        </script>
+        <script>
+          function toHex(value) {
+              return value.toString(16).padStart(2, "0").toUpperCase();
+            }
+          
+            function toUint32Le(data, offset) {
+                return (
+                    data[offset] |
+                    (data[offset + 1] << 8) |
+                    (data[offset + 2] << 16) |
+                    (data[offset + 3] << 24)
+                );
+            }
+          
+            function handle_config_data(data){
+              if (window.video_config_data!== undefined){
+                fix_data = new Uint8Array(window.video_config_data.byteLength + data.byteLength)
+                fix_data.set(window.video_config_data, 0)
+                fix_data.set(data, window.video_config_data.byteLength)
+                data = fix_data
+                window.video_config_data = undefined
+              }
+              return data
+            }
+          
+            function attach_canvas(canvas){
+              playerElement = document.getElementById('container')
+              playerElement.innerHTML = ""
+              playerElement.appendChild(canvas)
+              window.video_renderer_canvas = canvas
+              // canvas control support
+              if (window.query_param_dict['control'] != false){
+                console.log(canvas.width,canvas.height)
+                add_canvas_touch_event(canvas);
+                add_canvas_swipe_event(canvas);
+                add_canvas_scroll_event(canvas);
+              }
+            }
+          
+            function load_video_player(){
+              window.canvas_resolution = [0, 0];
+              if (document.getElementById('video_play_select').value.startsWith('broardway')){
+          
+                window.video_player = new Player({ useWorker: true, webgl: 'auto', size: { width: 336, height: 720 }, workerFile: "/static/general/js/Decoder.js", preserveDrawingBuffer: true});
+                window.video_player_feed = function(data){
+                  if (data[4]==103){
+                    const { profileIndex, constraintSet, levelIndex, croppedWidth, croppedHeight,} = window.h264ParseConfiguration(data);
+                    window.canvas_resolution = [croppedWidth, croppedHeight];
+                    if (window.frameElement && window.frameElement.tagName === 'IFRAME') {
+                         var content_iframe = window.parent.document.getElementById("showView").parentElement;//获取iframeID
+                        intcanvasWidth = croppedWidth;
+                       intcanvasHeight = croppedHeight;
+                       content_iframe.style.width = croppedWidth+80;
+                       content_iframe.style.height =croppedHeight+100;
+                     }
+                    update_resolution();
+                  }
+                  window.video_player.decode(data);
+                }
+                attach_canvas(window.video_player.canvas)
+              }
+              else{
+                try{
+                  window.video_decoder = new VideoDecoder({
+                    output: function(frame){ window.video_renderer_context.drawImage(frame, 0, 0); frame.close(); },
+                    error: function(e) { console.log(e) }
+                  })
+                } catch (e) {
+                  document.getElementById("code_msg").style.display='block';
+                  document.getElementById("code_msg").innerHTML = "Error: no video webcodecs support!";
+                  throw e;
+                }
+                if (window.query_param_dict['video_codec'] == 'h264'){
+                  window.video_player_feed = function(data){
+                    if (data[4]==103){
+                      const { profileIndex, constraintSet, levelIndex, croppedWidth, croppedHeight,} = window.h264ParseConfiguration(data);
+                      window.canvas_resolution = [croppedWidth, croppedHeight];
+                    if (window.frameElement && window.frameElement.tagName === 'IFRAME') {
+                        var content_iframe = window.parent.document.getElementById("showView").parentElement;//获取iframeID
+                        intcanvasWidth = croppedWidth;
+                       intcanvasHeight = croppedHeight;
+                       content_iframe.style.width = croppedWidth+80;
+                       content_iframe.style.height =croppedHeight+100;
+                     }
+                      update_resolution();
+                      const codec = `avc1.${[profileIndex, constraintSet, levelIndex].map(toHex).join("")}`
+                      window.video_decoder.configure({ codec: codec, optimizeForLatency: true })
+                      video_renderer_canvas = document.createElement("canvas")
+                      video_renderer_canvas.width = croppedWidth;
+                      video_renderer_canvas.height = croppedHeight;
+          
+          
+                      attach_canvas(video_renderer_canvas)
+                      window.video_config_data = data
+                      window.video_renderer_context = video_renderer_canvas.getContext("2d")
+                    }
+                    else{
+                      // 第一个key贞必须拼接上配置贞
+                      data = handle_config_data(data)
+                      chunk = new EncodedVideoChunk({ type: data[4] in [101, 69, 37] ? "key" : "delta", timestamp: 0, data:data})
+                      window.video_decoder.decode(chunk)
+                    }
+                  }
+                }
+                else if (window.query_param_dict['video_codec'] == 'h265'){
+                  window.video_player_feed = function(data){
+                    if (data[4]==64){
+                      const {
+                        generalProfileSpace,
+                        generalProfileIndex,
+                        generalProfileCompatibilitySet,
+                        generalTierFlag,
+                        generalLevelIndex,
+                        generalConstraintSet,
+                        croppedWidth,
+                        croppedHeight,
+                      } = window.h265ParseConfiguration(data);
+                      window.canvas_resolution = [croppedWidth, croppedHeight];
+                      update_resolution();
+                      const codec = [ "hev1",
+                        ["", "A", "B", "C"][generalProfileSpace] +
+                            generalProfileIndex.toString(),
+                        toUint32Le(generalProfileCompatibilitySet, 0).toString(16),
+                        (generalTierFlag ? "H" : "L") +
+                            generalLevelIndex.toString(),
+                        toUint32Le(generalConstraintSet, 0)
+                            .toString(16)
+                            .toUpperCase(),
+                        toUint32Le(generalConstraintSet, 4)
+                            .toString(16)
+                            .toUpperCase(),
+                      ].join(".")
+                      window.video_decoder.configure({ codec: codec, optimizeForLatency: true })
+                      video_renderer_canvas = document.createElement("canvas")
+                      video_renderer_canvas.width = croppedWidth;
+                      video_renderer_canvas.height = croppedHeight;
+                              if (window.frameElement && window.frameElement.tagName === 'IFRAME') {
+                       var content_iframe = window.parent.document.getElementById("showView").parentElement;//获取iframeID
+                        intcanvasWidth = croppedWidth;
+                       intcanvasHeight = croppedHeight;
+                       content_iframe.style.width = croppedWidth+80;
+                       content_iframe.style.height =croppedHeight+100;
+                     }
+                      attach_canvas(video_renderer_canvas)
+                      window.video_config_data = data
+                      window.video_renderer_context = video_renderer_canvas.getContext("2d")
+                    }
+                    else{
+                      // 第一个key贞必须拼接上配置贞
+                      data = handle_config_data(data)
+                      chunk = new EncodedVideoChunk({ type: data[4] in [38] ? "key" : "delta", timestamp: 0, data:data})
+                      window.video_decoder.decode(chunk)
+                    }
+                  }
+                }
+              }
+          
+            }
+        </script>
+        <script>
+          function load_websocket(){
+                ws_url = "ws://" + document.location.host + "/stream/device/" + "{{device_id}}" + "/?" + window.query_param;
+                if (document.getElementById('video_play_select').value == 'broardway2'){
+                  var broardway2_param_dict = Object.assign({}, window.query_param_dict);
+                  delete broardway2_param_dict['video_codec_options'];
+                  broardway2_query_param = "config=" + encodeURIComponent(JSON.stringify(broardway2_param_dict));
+                  console.log(window.query_param);
+                  console.log(broardway2_query_param);
+                  ws_url = "ws://" + document.location.host + "/stream/device/" + "{{device_id}}" + "/?" + broardway2_query_param;
+                  console.log("broardway2 video player use no video_codec_options!!!");
+                }
+                window.ws = new WebSocket(ws_url)
+                window.ws.binaryType = 'arraybuffer'
+                window.ws.onopen = function (e) {
+                    document.getElementById("code_msg").style.display='none';
+                    window.player_start_date = new Date();
+                    window.data_size = 0
+                    window.frame_cnt = 0 
+                    window.previous_data_size = 0
+                    window.previous_frame_cnt = 0
+                    console.log('ws:Client connected')
+                }
+                window.ws.onerror = function(e){
+                  console.log("Failed connect to device, maybe adb offline !!!");
+                };
+                window.ws.onmessage = function (msg) {
+                    unit8_data = new Uint8Array(msg.data)
+                    window.data_size += unit8_data.length
+                    start_code = unit8_data.slice(0, 5).join('')
+                    // 1.视频流数据
+                    if (start_code.startsWith('0001')){
+                      window.frame_cnt += 1
+                      window.video_player_feed(unit8_data)
+                    }
+                    //2.其它流数据
+                    else if(start_code.startsWith('0002')){
+                      data = unit8_data.slice(5)
+                      if (start_code.endsWith('0')){
+                          string_data = new TextDecoder("utf-8").decode(data);
+                          copyString(string_data);
+                         
+                      }
+                      else if(start_code.endsWith('1')){
+                          console.log("paste_sequence:", data)
+                      }
+                      else if(start_code.endsWith('2')){
+                        recorder_filename = String.fromCharCode.apply(null, data)
+                        console.log("recorder_filename-->: ", recorder_filename)
+                      }
+                    }
+                    //3.音频流数据
+                    else if(start_code.startsWith('0003')){
+                      if (window.audio_player){
+                        window.audio_player_feed(unit8_data.slice(4))
+                      }
+                    }
+                }
+                window.ws.onclose = function (e) {
+                  window.player_start_date = null;
+                  window.data_size = 0
+                  window.frame_cnt = 0 
+                  window.previous_data_size = 0
+                  window.previous_frame_cnt = 0
+                  console.log('ws: Client disconnected')
+                  document.getElementById("code_msg").style.display='block';
+                  document.getElementById("code_msg").innerHTML = "Client disconnected";
+                }
+             }
+        </script>
+        <script>
+          // reload
+              function reload(){
+                window.ws.onclose = function (e) {
+                  console.log('ws: Client disconnected')
+                }
+                window.ws.close()
+                document.getElementById("code_msg").style.display='none';
+                load_audio_player()
+                load_video_player()
+                load_websocket()
+              }
+          
+              // reload audio player
+              function reload_audio_player(){
+                if (window.audio_player != null){
+                  window.audio_player.init(window.audio_player.option)
+                }
+              }
+          
+              //flush_duration
+              function flush_duration(){
+                // 1.duraion
+                if (window.player_start_date){
+                  date_now = new Date();
+                  document.getElementById("player_duration").innerHTML = parseInt((date_now - window.player_start_date)/1000);
+                }else{
+                  document.getElementById("player_duration").innerHTML = 0;
+                }
+                // 2.data
+                fps = "fps: " + (window.frame_cnt-window.previous_frame_cnt).toString() + '; '
+                window.previous_frame_cnt = window.frame_cnt
+                rate = "bit_rate: " + ((window.data_size-window.previous_data_size)/1024).toFixed(1).toString() + 'KB/s; '
+                window.previous_data_size = window.data_size
+                size = "data_size: " + (window.data_size/(1024*1024)).toFixed(1).toString() + 'Mb'
+                console.log("Player_state --> ", fps+rate+size)
+              }
+          
+              // window onload
+              window.onload = function(){
+                setInterval(flush_duration, 1000);
+                document.getElementById('reload_button').addEventListener('click', reload)
+                document.getElementById('reload_volume').addEventListener('click', reload_audio_player)
+                load_utils()
+                load_audio_player()
+                load_video_player()
+                load_websocket()
+              }
+        </script>
+  </body>
+</html>
