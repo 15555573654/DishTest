@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dishtest.system.mapper.MqttOperationLogMapper">
+    
+    <resultMap type="MqttOperationLog" id="MqttOperationLogResult">
+        <result property="logId"             column="log_id"             />
+        <result property="username"          column="username"           />
+        <result property="operationType"     column="operation_type"     />
+        <result property="deviceNames"       column="device_names"       />
+        <result property="operationContent"  column="operation_content"  />
+        <result property="result"            column="result"             />
+        <result property="errorMessage"      column="error_message"      />
+        <result property="createTime"        column="create_time"        />
+    </resultMap>
+
+    <sql id="selectMqttOperationLogVo">
+        select log_id, username, operation_type, device_names, operation_content, result, error_message, create_time from mqtt_operation_log
+    </sql>
+
+    <select id="selectMqttOperationLogList" parameterType="MqttOperationLog" resultMap="MqttOperationLogResult">
+        <include refid="selectMqttOperationLogVo"/>
+        <where>  
+            <if test="username != null  and username != ''"> and username = #{username}</if>
+            <if test="operationType != null  and operationType != ''"> and operation_type = #{operationType}</if>
+            <if test="result != null  and result != ''"> and result = #{result}</if>
+            <if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索 -->
+                and date_format(create_time,'%y%m%d') &gt;= date_format(#{params.beginTime},'%y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''"><!-- 结束时间检索 -->
+                and date_format(create_time,'%y%m%d') &lt;= date_format(#{params.endTime},'%y%m%d')
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+    
+    <select id="selectMqttOperationLogByLogId" parameterType="Long" resultMap="MqttOperationLogResult">
+        <include refid="selectMqttOperationLogVo"/>
+        where log_id = #{logId}
+    </select>
+        
+    <insert id="insertMqttOperationLog" parameterType="MqttOperationLog" useGeneratedKeys="true" keyProperty="logId">
+        insert into mqtt_operation_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="username != null and username != ''">username,</if>
+            <if test="operationType != null and operationType != ''">operation_type,</if>
+            <if test="deviceNames != null">device_names,</if>
+            <if test="operationContent != null">operation_content,</if>
+            <if test="result != null">result,</if>
+            <if test="errorMessage != null">error_message,</if>
+            create_time
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="username != null and username != ''">#{username},</if>
+            <if test="operationType != null and operationType != ''">#{operationType},</if>
+            <if test="deviceNames != null">#{deviceNames},</if>
+            <if test="operationContent != null">#{operationContent},</if>
+            <if test="result != null">#{result},</if>
+            <if test="errorMessage != null">#{errorMessage},</if>
+            sysdate()
+         </trim>
+    </insert>
+
+    <update id="updateMqttOperationLog" parameterType="MqttOperationLog">
+        update mqtt_operation_log
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="username != null and username != ''">username = #{username},</if>
+            <if test="operationType != null and operationType != ''">operation_type = #{operationType},</if>
+            <if test="deviceNames != null">device_names = #{deviceNames},</if>
+            <if test="operationContent != null">operation_content = #{operationContent},</if>
+            <if test="result != null">result = #{result},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+        </trim>
+        where log_id = #{logId}
+    </update>
+
+    <delete id="deleteMqttOperationLogByLogId" parameterType="Long">
+        delete from mqtt_operation_log where log_id = #{logId}
+    </delete>
+
+    <delete id="deleteMqttOperationLogByLogIds" parameterType="String">
+        delete from mqtt_operation_log where log_id in 
+        <foreach item="logId" collection="array" open="(" separator="," close=")">
+            #{logId}
+        </foreach>
+    </delete>
+
+    <delete id="cleanMqttOperationLog">
+        truncate table mqtt_operation_log
+    </delete>
+</mapper>

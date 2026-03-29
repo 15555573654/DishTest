@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dishtest.system.mapper.MqttConnectionConfigMapper">
+    
+    <resultMap type="MqttConnectionConfig" id="MqttConnectionConfigResult">
+        <result property="configId"       column="config_id"       />
+        <result property="username"       column="username"        />
+        <result property="mqttHost"       column="mqtt_host"       />
+        <result property="mqttPort"       column="mqtt_port"       />
+        <result property="mqttUsername"   column="mqtt_username"   />
+        <result property="mqttPassword"   column="mqtt_password"   />
+        <result property="enabled"        column="enabled"         />
+        <result property="createTime"     column="create_time"     />
+        <result property="updateTime"     column="update_time"     />
+    </resultMap>
+
+    <sql id="selectMqttConnectionConfigVo">
+        select config_id, username, mqtt_host, mqtt_port, mqtt_username, mqtt_password, enabled, create_time, update_time from mqtt_connection_config
+    </sql>
+
+    <select id="selectMqttConnectionConfigList" parameterType="MqttConnectionConfig" resultMap="MqttConnectionConfigResult">
+        <include refid="selectMqttConnectionConfigVo"/>
+        <where>  
+            <if test="username != null  and username != ''"> and username = #{username}</if>
+            <if test="enabled != null"> and enabled = #{enabled}</if>
+        </where>
+    </select>
+    
+    <select id="selectMqttConnectionConfigByConfigId" parameterType="Long" resultMap="MqttConnectionConfigResult">
+        <include refid="selectMqttConnectionConfigVo"/>
+        where config_id = #{configId}
+    </select>
+
+    <select id="selectMqttConnectionConfigByUsername" parameterType="String" resultMap="MqttConnectionConfigResult">
+        <include refid="selectMqttConnectionConfigVo"/>
+        where username = #{username}
+    </select>
+        
+    <insert id="insertMqttConnectionConfig" parameterType="MqttConnectionConfig" useGeneratedKeys="true" keyProperty="configId">
+        insert into mqtt_connection_config
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="username != null and username != ''">username,</if>
+            <if test="mqttHost != null and mqttHost != ''">mqtt_host,</if>
+            <if test="mqttPort != null">mqtt_port,</if>
+            <if test="mqttUsername != null and mqttUsername != ''">mqtt_username,</if>
+            <if test="mqttPassword != null and mqttPassword != ''">mqtt_password,</if>
+            <if test="enabled != null">enabled,</if>
+            create_time
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="username != null and username != ''">#{username},</if>
+            <if test="mqttHost != null and mqttHost != ''">#{mqttHost},</if>
+            <if test="mqttPort != null">#{mqttPort},</if>
+            <if test="mqttUsername != null and mqttUsername != ''">#{mqttUsername},</if>
+            <if test="mqttPassword != null and mqttPassword != ''">#{mqttPassword},</if>
+            <if test="enabled != null">#{enabled},</if>
+            sysdate()
+         </trim>
+    </insert>
+
+    <update id="updateMqttConnectionConfig" parameterType="MqttConnectionConfig">
+        update mqtt_connection_config
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="username != null and username != ''">username = #{username},</if>
+            <if test="mqttHost != null and mqttHost != ''">mqtt_host = #{mqttHost},</if>
+            <if test="mqttPort != null">mqtt_port = #{mqttPort},</if>
+            <if test="mqttUsername != null and mqttUsername != ''">mqtt_username = #{mqttUsername},</if>
+            <if test="mqttPassword != null and mqttPassword != ''">mqtt_password = #{mqttPassword},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+            update_time = sysdate()
+        </trim>
+        where config_id = #{configId}
+    </update>
+
+    <delete id="deleteMqttConnectionConfigByConfigId" parameterType="Long">
+        delete from mqtt_connection_config where config_id = #{configId}
+    </delete>
+
+    <delete id="deleteMqttConnectionConfigByConfigIds" parameterType="String">
+        delete from mqtt_connection_config where config_id in 
+        <foreach item="configId" collection="array" open="(" separator="," close=")">
+            #{configId}
+        </foreach>
+    </delete>
+</mapper>

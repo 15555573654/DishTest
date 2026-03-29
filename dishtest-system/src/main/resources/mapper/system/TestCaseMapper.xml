@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dishtest.system.mapper.TestCaseMapper">
+    
+    <resultMap type="TestCase" id="TestCaseResult">
+        <result property="caseId"    column="case_id"    />
+        <result property="caseTitle"    column="case_title"    />
+        <result property="inputDoc"    column="input_doc"    />
+        <result property="fileName"    column="file_name"    />
+        <result property="filePath"    column="file_path"    />
+        <result property="fileType"    column="file_type"    />
+        <result property="caseContent"    column="case_content"    />
+        <result property="status"    column="status"    />
+        <result property="aiModel"    column="ai_model"    />
+        <result property="promptConfigId"    column="prompt_config_id"    />
+        <result property="modelConfigId"    column="model_config_id"    />
+        <result property="generateTime"    column="generate_time"    />
+        <result property="errorMsg"    column="error_msg"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectTestCaseVo">
+        select case_id, case_title, input_doc, file_name, file_path, file_type, case_content, status, ai_model, prompt_config_id, model_config_id, generate_time, error_msg, create_by, create_time, update_by, update_time, remark from test_case
+    </sql>
+
+    <select id="selectTestCaseList" parameterType="TestCase" resultMap="TestCaseResult">
+        <include refid="selectTestCaseVo"/>
+        <where>  
+            <if test="caseTitle != null  and caseTitle != ''"> and case_title like concat('%', #{caseTitle}, '%')</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+            <if test="aiModel != null  and aiModel != ''"> and ai_model = #{aiModel}</if>
+            <if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索 -->
+                and date_format(create_time,'%y%m%d') &gt;= date_format(#{params.beginTime},'%y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''"><!-- 结束时间检索 -->
+                and date_format(create_time,'%y%m%d') &lt;= date_format(#{params.endTime},'%y%m%d')
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+    
+    <select id="selectTestCaseByCaseId" parameterType="Long" resultMap="TestCaseResult">
+        <include refid="selectTestCaseVo"/>
+        where case_id = #{caseId}
+    </select>
+        
+    <insert id="insertTestCase" parameterType="TestCase" useGeneratedKeys="true" keyProperty="caseId">
+        insert into test_case
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="caseTitle != null and caseTitle != ''">case_title,</if>
+            <if test="inputDoc != null">input_doc,</if>
+            <if test="fileName != null">file_name,</if>
+            <if test="filePath != null">file_path,</if>
+            <if test="fileType != null">file_type,</if>
+            <if test="caseContent != null">case_content,</if>
+            <if test="status != null">status,</if>
+            <if test="aiModel != null">ai_model,</if>
+            <if test="promptConfigId != null">prompt_config_id,</if>
+            <if test="modelConfigId != null">model_config_id,</if>
+            <if test="generateTime != null">generate_time,</if>
+            <if test="errorMsg != null">error_msg,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="caseTitle != null and caseTitle != ''">#{caseTitle},</if>
+            <if test="inputDoc != null">#{inputDoc},</if>
+            <if test="fileName != null">#{fileName},</if>
+            <if test="filePath != null">#{filePath},</if>
+            <if test="fileType != null">#{fileType},</if>
+            <if test="caseContent != null">#{caseContent},</if>
+            <if test="status != null">#{status},</if>
+            <if test="aiModel != null">#{aiModel},</if>
+            <if test="promptConfigId != null">#{promptConfigId},</if>
+            <if test="modelConfigId != null">#{modelConfigId},</if>
+            <if test="generateTime != null">#{generateTime},</if>
+            <if test="errorMsg != null">#{errorMsg},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateTestCase" parameterType="TestCase">
+        update test_case
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="caseTitle != null and caseTitle != ''">case_title = #{caseTitle},</if>
+            <if test="inputDoc != null">input_doc = #{inputDoc},</if>
+            <if test="fileName != null">file_name = #{fileName},</if>
+            <if test="filePath != null">file_path = #{filePath},</if>
+            <if test="fileType != null">file_type = #{fileType},</if>
+            <if test="caseContent != null">case_content = #{caseContent},</if>
+            <if test="status != null">status = #{status},</if>
+            ai_model = #{aiModel},
+            <if test="promptConfigId != null">prompt_config_id = #{promptConfigId},</if>
+            <if test="modelConfigId != null">model_config_id = #{modelConfigId},</if>
+            <if test="generateTime != null">generate_time = #{generateTime},</if>
+            error_msg = #{errorMsg},
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where case_id = #{caseId}
+    </update>
+
+    <delete id="deleteTestCaseByCaseId" parameterType="Long">
+        delete from test_case where case_id = #{caseId}
+    </delete>
+
+    <delete id="deleteTestCaseByCaseIds" parameterType="String">
+        delete from test_case where case_id in 
+        <foreach item="caseId" collection="array" open="(" separator="," close=")">
+            #{caseId}
+        </foreach>
+    </delete>
+</mapper>
