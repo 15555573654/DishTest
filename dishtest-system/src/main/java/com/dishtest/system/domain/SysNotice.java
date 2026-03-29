@@ -10,7 +10,7 @@ import com.dishtest.common.xss.Xss;
 /**
  * 通知公告表 sys_notice
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysNotice extends BaseEntity
 {

@@ -292,7 +292,7 @@
 </template>
 
 <script>
-import { parseTime } from "@/utils/ruoyi";
+import { parseTime } from "@/utils/dishtest";
 import mqtt from 'mqtt';
 import Cookies from "js-cookie";
 import { decrypt } from "@/utils/jsencrypt";

@@ -6,7 +6,7 @@ import com.dishtest.common.core.domain.entity.SysRole;
 /**
  * 角色表 数据层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface SysRoleMapper
 {

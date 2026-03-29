@@ -6,7 +6,7 @@ import com.dishtest.system.domain.TestCase;
 /**
  * 测试用例Service接口
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface ITestCaseService 
 {

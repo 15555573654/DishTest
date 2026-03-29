@@ -8,7 +8,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * AI提示词配置对象 ai_prompt_config
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2026-02-16
  */
 public class AiPromptConfig extends BaseEntity

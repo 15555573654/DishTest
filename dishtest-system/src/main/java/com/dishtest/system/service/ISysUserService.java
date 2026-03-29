@@ -7,7 +7,7 @@ import com.dishtest.common.core.domain.entity.SysUser;
 /**
  * 用户 业务层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface ISysUserService
 {

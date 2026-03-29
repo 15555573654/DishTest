@@ -35,7 +35,7 @@ import com.dishtest.system.service.ISysUserService;
 /**
  * 用户信息
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/system/user")

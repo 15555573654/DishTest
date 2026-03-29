@@ -23,7 +23,7 @@ import com.dishtest.system.service.ISysLogininforService;
 /**
  * 系统访问记录
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/monitor/logininfor")

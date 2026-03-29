@@ -14,7 +14,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import com.dishtest.common.config.RuoYiConfig;
+import com.dishtest.common.config.DishTestConfig;
 import com.dishtest.common.constant.Constants;
 import com.dishtest.common.utils.DateUtils;
 import com.dishtest.common.utils.StringUtils;
@@ -23,7 +23,7 @@ import com.dishtest.common.utils.uuid.IdUtils;
 /**
  * 文件处理工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class FileUtils
 {
@@ -74,7 +74,7 @@ public class FileUtils
      */
     public static String writeImportBytes(byte[] data) throws IOException
     {
-        return writeBytes(data, RuoYiConfig.getImportPath());
+        return writeBytes(data, DishTestConfig.getImportPath());
     }
 
     /**

@@ -7,7 +7,7 @@ import com.dishtest.common.constant.Constants;
 /**
  * VelocityEngine工厂
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class VelocityInitializer
 {

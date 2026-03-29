@@ -8,7 +8,7 @@ import com.dishtest.common.annotation.Excel;
 /**
  * MQTT连接配置对象 mqtt_connection_config
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 public class MqttConnectionConfig

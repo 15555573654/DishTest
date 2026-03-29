@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Base application theme using Material Components -->
-    <style name="Base.Theme.RuoyiScreencast" parent="Theme.MaterialComponents.Light.DarkActionBar">
+    <style name="Base.Theme.DishtestScreencast" parent="Theme.MaterialComponents.Light.DarkActionBar">
         <!-- Primary brand color -->
         <item name="colorPrimary">@color/purple_500</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
@@ -16,5 +16,5 @@
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
     </style>
 
-    <style name="Theme.RuoyiScreencast" parent="Base.Theme.RuoyiScreencast" />
+    <style name="Theme.DishtestScreencast" parent="Base.Theme.DishtestScreencast" />
 </resources>

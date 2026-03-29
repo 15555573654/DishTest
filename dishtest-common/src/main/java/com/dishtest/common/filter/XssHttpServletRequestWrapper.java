@@ -15,7 +15,7 @@ import com.dishtest.common.utils.html.EscapeUtil;
 /**
  * XSS过滤处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper
 {

@@ -25,7 +25,7 @@ import com.dishtest.system.service.ISysPostService;
 /**
  * 岗位信息操作处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/system/post")

@@ -28,7 +28,7 @@ import com.dishtest.system.service.IMqttOperationLogService;
 /**
  * MQTT设备Controller
  *
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 @RestController

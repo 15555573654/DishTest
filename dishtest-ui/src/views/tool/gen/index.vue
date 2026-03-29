@@ -266,7 +266,7 @@ export default {
           this.$modal.msgSuccess("成功生成到自定义路径：" + row.genPath)
         })
       } else {
-        const zipName = Array.isArray(tableNames) ? "ruoyi.zip" : tableNames + ".zip"
+        const zipName = Array.isArray(tableNames) ? "dishtest.zip" : tableNames + ".zip"
         this.$download.zip("/tool/gen/batchGenCode?tables=" + tableNames, zipName)
       }
     },

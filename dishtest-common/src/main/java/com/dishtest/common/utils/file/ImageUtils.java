@@ -9,14 +9,14 @@ import java.util.Arrays;
 import org.apache.poi.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.dishtest.common.config.RuoYiConfig;
+import com.dishtest.common.config.DishTestConfig;
 import com.dishtest.common.constant.Constants;
 import com.dishtest.common.utils.StringUtils;
 
 /**
  * 图片处理工具类
  *
- * @author ruoyi
+ * @author dishtest
  */
 public class ImageUtils
 {
@@ -79,7 +79,7 @@ public class ImageUtils
             else
             {
                 // 本机地址
-                String localPath = RuoYiConfig.getProfile();
+                String localPath = DishTestConfig.getProfile();
                 String downloadPath = localPath + StringUtils.substringAfter(url, Constants.RESOURCE_PREFIX);
                 in = new FileInputStream(downloadPath);
             }

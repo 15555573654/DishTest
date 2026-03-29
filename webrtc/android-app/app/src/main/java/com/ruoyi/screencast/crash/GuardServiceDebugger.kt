@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.crash
+package com.dishtest.screencast.crash
 
 import android.app.ActivityManager
 import android.content.Context

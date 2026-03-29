@@ -7,7 +7,7 @@ import com.dishtest.common.utils.ServletUtils;
 /**
  * 服务相关配置
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Component
 public class ServerConfig

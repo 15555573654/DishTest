@@ -3,7 +3,7 @@ package com.dishtest.common.exception;
 /**
  * 演示模式异常
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class DemoModeException extends RuntimeException
 {

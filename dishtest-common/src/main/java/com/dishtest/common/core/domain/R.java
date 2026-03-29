@@ -6,7 +6,7 @@ import com.dishtest.common.constant.HttpStatus;
 /**
  * 响应信息主体
  *
- * @author ruoyi
+ * @author dishtest
  */
 public class R<T> implements Serializable
 {

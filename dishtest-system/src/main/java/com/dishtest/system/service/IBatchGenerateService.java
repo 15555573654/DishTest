@@ -8,7 +8,7 @@ import java.util.function.Consumer;
  * 批量生成服务接口
  * 参考auto_test的30并发批量生成实现
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface IBatchGenerateService {
     

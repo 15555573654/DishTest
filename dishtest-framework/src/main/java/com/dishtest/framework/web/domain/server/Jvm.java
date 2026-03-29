@@ -7,7 +7,7 @@ import com.dishtest.common.utils.DateUtils;
 /**
  * JVM相关信息
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class Jvm
 {

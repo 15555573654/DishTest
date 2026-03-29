@@ -16,7 +16,7 @@ import com.dishtest.framework.security.context.AuthenticationContextHolder;
 /**
  * 登录密码方法
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Component
 public class SysPasswordService

@@ -9,7 +9,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * AI模型配置对象 ai_model_config
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2026-02-16
  */
 public class AiModelConfig extends BaseEntity

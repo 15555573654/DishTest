@@ -3,7 +3,7 @@ package com.dishtest.common.constant;
 /**
  * 返回状态码
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class HttpStatus
 {

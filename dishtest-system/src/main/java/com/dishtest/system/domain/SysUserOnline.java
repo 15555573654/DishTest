@@ -3,7 +3,7 @@ package com.dishtest.system.domain;
 /**
  * 当前在线会话
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysUserOnline
 {

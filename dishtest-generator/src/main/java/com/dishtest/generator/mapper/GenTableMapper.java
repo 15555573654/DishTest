@@ -6,7 +6,7 @@ import com.dishtest.generator.domain.GenTable;
 /**
  * 业务 数据层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface GenTableMapper
 {

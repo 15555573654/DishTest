@@ -3,7 +3,7 @@ package com.dishtest.common.enums;
 /**
  * 限流类型
  *
- * @author ruoyi
+ * @author dishtest
  */
 
 public enum LimitType

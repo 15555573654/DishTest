@@ -13,7 +13,7 @@ import com.dishtest.common.utils.spring.SpringUtils;
 /**
  * 字典工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class DictUtils
 {

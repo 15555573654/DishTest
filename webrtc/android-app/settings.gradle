@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RuoYiScreencast"
+rootProject.name = "DishtestScreencast"
 include ':app'

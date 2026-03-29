@@ -24,7 +24,7 @@ import com.dishtest.framework.security.handle.LogoutSuccessHandlerImpl;
 /**
  * spring security配置
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
 @Configuration

@@ -12,7 +12,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * 类型转换器
  *
- * @author ruoyi
+ * @author dishtest
  */
 public class Convert
 {

@@ -16,7 +16,7 @@ import com.dishtest.common.exception.ServiceException;
 /**
  * 安全服务工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SecurityUtils
 {

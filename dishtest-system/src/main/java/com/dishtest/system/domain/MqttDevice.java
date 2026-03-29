@@ -9,7 +9,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * MQTT设备对象 mqtt_device
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 public class MqttDevice extends BaseEntity

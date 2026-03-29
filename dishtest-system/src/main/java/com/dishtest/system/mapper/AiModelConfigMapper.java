@@ -6,7 +6,7 @@ import com.dishtest.system.domain.AiModelConfig;
 /**
  * AI模型配置Mapper接口
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2026-02-16
  */
 public interface AiModelConfigMapper 

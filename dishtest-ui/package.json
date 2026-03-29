@@ -1,8 +1,8 @@
 {
-  "name": "ruoyi",
+  "name": "dishtest",
   "version": "3.9.1",
   "description": "黄花菜测试平台",
-  "author": "若依",
+  "author": "DishTest",
   "license": "MIT",
   "scripts": {
     "dev": "vue-cli-service serve",
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/y_project/RuoYi-Vue.git"
+    "url": "https://gitee.com/y_project/DishTest.git"
   },
   "dependencies": {
     "@riophae/vue-treeselect": "0.4.0",

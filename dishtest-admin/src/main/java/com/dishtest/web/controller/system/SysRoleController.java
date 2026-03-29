@@ -34,7 +34,7 @@ import com.dishtest.system.service.ISysUserService;
 /**
  * 角色信息
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/system/role")

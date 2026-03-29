@@ -12,7 +12,7 @@ import com.dishtest.common.enums.DesensitizedType;
 /**
  * 数据脱敏注解
  *
- * @author ruoyi
+ * @author dishtest
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

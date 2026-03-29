@@ -7,7 +7,7 @@ import com.dishtest.system.domain.MqttConnectionConfig;
 /**
  * MQTT连接配置Mapper接口
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 public interface MqttConnectionConfigMapper 

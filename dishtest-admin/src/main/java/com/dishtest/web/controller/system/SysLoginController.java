@@ -27,7 +27,7 @@ import com.dishtest.system.service.ISysMenuService;
 /**
  * 登录验证
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 public class SysLoginController

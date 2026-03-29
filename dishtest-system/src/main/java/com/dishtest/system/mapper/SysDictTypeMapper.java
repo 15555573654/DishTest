@@ -6,7 +6,7 @@ import com.dishtest.common.core.domain.entity.SysDictType;
 /**
  * 字典表 数据层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface SysDictTypeMapper
 {

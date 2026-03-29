@@ -21,7 +21,7 @@ import com.dishtest.system.service.ISysDictTypeService;
 /**
  * 字典 业务层处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Service
 public class SysDictTypeServiceImpl implements ISysDictTypeService

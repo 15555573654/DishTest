@@ -17,7 +17,7 @@ import com.dishtest.common.enums.HttpMethod;
 /**
  * 防止XSS攻击的过滤器
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class XssFilter implements Filter
 {

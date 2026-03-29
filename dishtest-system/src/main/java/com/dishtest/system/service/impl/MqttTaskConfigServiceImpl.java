@@ -16,7 +16,7 @@ import com.dishtest.system.service.IMqttTaskConfigService;
 /**
  * MQTT任务配置服务实现
  *
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 @Service

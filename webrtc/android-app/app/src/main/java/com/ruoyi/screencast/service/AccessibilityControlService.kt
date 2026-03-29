@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.service
+package com.dishtest.screencast.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription

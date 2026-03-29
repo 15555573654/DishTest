@@ -3,7 +3,7 @@ package com.dishtest.common.exception;
 /**
  * 业务异常
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public final class ServiceException extends RuntimeException
 {

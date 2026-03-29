@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import com.dishtest.common.annotation.Log;
-import com.dishtest.common.config.RuoYiConfig;
+import com.dishtest.common.config.DishTestConfig;
 import com.dishtest.common.core.controller.BaseController;
 import com.dishtest.common.core.domain.AjaxResult;
 import com.dishtest.common.core.domain.entity.SysUser;
@@ -29,7 +29,7 @@ import com.dishtest.system.service.ISysUserService;
 /**
  * 个人信息 业务处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/system/user/profile")
@@ -128,13 +128,13 @@ public class SysProfileController extends BaseController
         if (!file.isEmpty())
         {
             LoginUser loginUser = getLoginUser();
-            String avatar = FileUploadUtils.upload(RuoYiConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION, true);
+            String avatar = FileUploadUtils.upload(DishTestConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION, true);
             if (userService.updateUserAvatar(loginUser.getUserId(), avatar))
             {
                 String oldAvatar = loginUser.getUser().getAvatar();
                 if (StringUtils.isNotEmpty(oldAvatar))
                 {
-                    FileUtils.deleteFile(RuoYiConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
+                    FileUtils.deleteFile(DishTestConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
                 }
                 AjaxResult ajax = AjaxResult.success();
                 ajax.put("imgUrl", avatar);

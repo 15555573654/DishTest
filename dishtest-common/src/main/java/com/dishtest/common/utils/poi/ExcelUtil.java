@@ -74,7 +74,7 @@ import com.dishtest.common.annotation.Excel;
 import com.dishtest.common.annotation.Excel.ColumnType;
 import com.dishtest.common.annotation.Excel.Type;
 import com.dishtest.common.annotation.Excels;
-import com.dishtest.common.config.RuoYiConfig;
+import com.dishtest.common.config.DishTestConfig;
 import com.dishtest.common.core.domain.AjaxResult;
 import com.dishtest.common.core.text.Convert;
 import com.dishtest.common.exception.UtilException;
@@ -89,7 +89,7 @@ import com.dishtest.common.utils.reflect.ReflectUtils;
 /**
  * Excel相关处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class ExcelUtil<T>
 {
@@ -1497,7 +1497,7 @@ public class ExcelUtil<T>
      */
     public String getAbsoluteFile(String filename)
     {
-        String downloadPath = RuoYiConfig.getDownloadPath() + filename;
+        String downloadPath = DishTestConfig.getDownloadPath() + filename;
         File desc = new File(downloadPath);
         if (!desc.getParentFile().exists())
         {

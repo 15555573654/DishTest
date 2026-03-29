@@ -1,4 +1,4 @@
-package com.ruoyi.screencast
+package com.dishtest.screencast
 
 import android.Manifest
 import android.content.Intent

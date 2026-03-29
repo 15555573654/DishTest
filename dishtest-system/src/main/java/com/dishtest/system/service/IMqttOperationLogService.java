@@ -7,7 +7,7 @@ import com.dishtest.system.domain.MqttOperationLog;
 /**
  * MQTT操作日志服务接口
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 public interface IMqttOperationLogService

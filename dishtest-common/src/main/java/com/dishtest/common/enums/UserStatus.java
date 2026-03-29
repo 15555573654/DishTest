@@ -3,7 +3,7 @@ package com.dishtest.common.enums;
 /**
  * 用户状态
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public enum UserStatus
 {

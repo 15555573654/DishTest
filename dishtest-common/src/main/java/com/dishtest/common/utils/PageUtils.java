@@ -8,7 +8,7 @@ import com.dishtest.common.utils.sql.SqlUtil;
 /**
  * 分页工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class PageUtils extends PageHelper
 {

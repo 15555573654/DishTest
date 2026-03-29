@@ -7,7 +7,7 @@ import java.util.Map;
  * RAG检索服务接口
  * 参考auto_test的混合RAG架构实现
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface IRagService {
     

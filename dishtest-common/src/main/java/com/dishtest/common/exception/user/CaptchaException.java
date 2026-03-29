@@ -3,7 +3,7 @@ package com.dishtest.common.exception.user;
 /**
  * 验证码错误异常类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class CaptchaException extends UserException
 {

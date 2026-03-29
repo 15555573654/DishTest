@@ -7,7 +7,7 @@ import com.dishtest.generator.domain.GenTable;
 /**
  * 业务 服务层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface IGenTableService
 {

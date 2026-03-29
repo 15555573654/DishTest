@@ -5,7 +5,7 @@ import com.dishtest.system.domain.AiModelConfig;
 /**
  * AI生成服务接口
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface IAiGenerateService 
 {

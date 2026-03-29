@@ -3,7 +3,7 @@ package com.dishtest.common.exception.user;
 /**
  * 黑名单IP异常类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class BlackListException extends UserException
 {

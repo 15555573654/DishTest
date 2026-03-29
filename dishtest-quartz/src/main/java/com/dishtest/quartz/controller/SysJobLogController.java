@@ -22,7 +22,7 @@ import com.dishtest.quartz.service.ISysJobLogService;
 /**
  * 调度日志操作处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/monitor/jobLog")

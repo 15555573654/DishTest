@@ -5,7 +5,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * 缓存信息
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysCache
 {

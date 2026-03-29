@@ -27,7 +27,7 @@ import com.dishtest.framework.datasource.DynamicDataSource;
 /**
  * druid 配置多数据源
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Configuration
 public class DruidConfig

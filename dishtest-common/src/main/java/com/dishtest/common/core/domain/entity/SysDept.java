@@ -13,7 +13,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * 部门表 sys_dept
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysDept extends BaseEntity
 {

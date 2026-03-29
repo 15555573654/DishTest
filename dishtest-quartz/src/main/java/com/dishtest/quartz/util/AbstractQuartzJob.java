@@ -18,7 +18,7 @@ import com.dishtest.quartz.service.ISysJobLogService;
 /**
  * 抽象quartz调用
  *
- * @author ruoyi
+ * @author dishtest
  */
 public abstract class AbstractQuartzJob implements Job
 {

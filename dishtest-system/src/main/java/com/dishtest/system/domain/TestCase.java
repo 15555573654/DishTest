@@ -10,7 +10,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * 测试用例对象 test_case
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class TestCase extends BaseEntity
 {

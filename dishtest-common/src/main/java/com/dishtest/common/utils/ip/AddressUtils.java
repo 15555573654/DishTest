@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.dishtest.common.config.RuoYiConfig;
+import com.dishtest.common.config.DishTestConfig;
 import com.dishtest.common.constant.Constants;
 import com.dishtest.common.utils.StringUtils;
 import com.dishtest.common.utils.http.HttpUtils;
@@ -12,7 +12,7 @@ import com.dishtest.common.utils.http.HttpUtils;
 /**
  * 获取地址类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class AddressUtils
 {
@@ -31,7 +31,7 @@ public class AddressUtils
         {
             return "内网IP";
         }
-        if (RuoYiConfig.isAddressEnabled())
+        if (DishTestConfig.isAddressEnabled())
         {
             try
             {

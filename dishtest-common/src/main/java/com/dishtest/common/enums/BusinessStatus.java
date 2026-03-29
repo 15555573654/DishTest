@@ -3,7 +3,7 @@ package com.dishtest.common.enums;
 /**
  * 操作状态
  * 
- * @author ruoyi
+ * @author dishtest
  *
  */
 public enum BusinessStatus

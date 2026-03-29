@@ -12,7 +12,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * 菜单权限表 sys_menu
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysMenu extends BaseEntity
 {

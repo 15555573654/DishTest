@@ -20,7 +20,7 @@ import com.dishtest.common.core.domain.AjaxResult;
 import com.dishtest.common.enums.BusinessType;
 import com.dishtest.common.utils.file.FileUploadUtils;
 import com.dishtest.common.utils.file.FileUtils;
-import com.dishtest.common.config.RuoYiConfig;
+import com.dishtest.common.config.DishTestConfig;
 import com.dishtest.system.domain.TestCase;
 import com.dishtest.system.service.ITestCaseService;
 import com.dishtest.system.service.IDocumentParserService;
@@ -34,7 +34,7 @@ import java.io.OutputStream;
 /**
  * 测试用例Controller
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/tool/testcase")
@@ -108,7 +108,7 @@ public class TestCaseController extends BaseController
             }
 
             // 上传文件
-            String filePath = FileUploadUtils.upload(RuoYiConfig.getUploadPath(), file);
+            String filePath = FileUploadUtils.upload(DishTestConfig.getUploadPath(), file);
             
             // 解析文档内容
             String documentContent = documentParserService.parseDocument(file);

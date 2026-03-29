@@ -6,7 +6,7 @@ import com.dishtest.system.domain.SysOperLog;
 /**
  * 操作日志 数据层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface SysOperLogMapper
 {

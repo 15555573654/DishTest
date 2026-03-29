@@ -3,7 +3,7 @@ package com.dishtest.common.constant;
 /**
  * 任务调度通用常量
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class ScheduleConstants
 {

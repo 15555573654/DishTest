@@ -9,7 +9,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * 操作日志记录表 oper_log
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysOperLog extends BaseEntity
 {

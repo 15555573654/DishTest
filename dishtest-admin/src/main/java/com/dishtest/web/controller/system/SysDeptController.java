@@ -25,7 +25,7 @@ import com.dishtest.system.service.ISysDeptService;
 /**
  * 部门信息
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/system/dept")

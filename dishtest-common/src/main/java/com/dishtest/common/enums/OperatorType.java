@@ -3,7 +3,7 @@ package com.dishtest.common.enums;
 /**
  * 操作人类别
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public enum OperatorType
 {

@@ -22,7 +22,7 @@ import com.dishtest.system.service.ISysUserService;
 /**
  * 注册校验方法
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Component
 public class SysRegisterService

@@ -9,7 +9,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * MQTT操作日志对象 mqtt_operation_log
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 public class MqttOperationLog extends BaseEntity

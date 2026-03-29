@@ -11,7 +11,7 @@ import com.dishtest.generator.domain.GenTableColumn;
 /**
  * 代码生成器 工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class GenUtils
 {
@@ -215,7 +215,7 @@ public class GenUtils
      */
     public static String replaceText(String text)
     {
-        return RegExUtils.replaceAll(text, "(?:表|若依)", "");
+        return RegExUtils.replaceAll(text, "(?:表|黄花菜)", "");
     }
 
     /**

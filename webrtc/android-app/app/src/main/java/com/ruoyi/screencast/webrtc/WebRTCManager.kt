@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.webrtc
+package com.dishtest.screencast.webrtc
 
 import android.content.Context
 import android.content.Intent

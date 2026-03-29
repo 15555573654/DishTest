@@ -5,7 +5,7 @@ import com.dishtest.common.utils.Arith;
 /**
  * CPU相关信息
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class Cpu
 {

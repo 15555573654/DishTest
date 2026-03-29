@@ -24,7 +24,7 @@ import com.dishtest.common.utils.sql.SqlUtil;
 /**
  * web层通用数据处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class BaseController
 {

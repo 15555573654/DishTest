@@ -31,7 +31,7 @@ import com.dishtest.system.service.ISysUserService;
 /**
  * 登录校验方法
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Component
 public class SysLoginService

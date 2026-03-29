@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 /**
  * AI生成服务实现 - 支持多种AI平台
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Service
 public class AiGenerateServiceImpl implements IAiGenerateService 

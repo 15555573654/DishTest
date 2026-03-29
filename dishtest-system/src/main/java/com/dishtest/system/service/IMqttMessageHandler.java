@@ -3,7 +3,7 @@ package com.dishtest.system.service;
 /**
  * MQTT消息处理器接口
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2025-01-19
  */
 public interface IMqttMessageHandler

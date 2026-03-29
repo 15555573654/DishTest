@@ -12,7 +12,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * Treeselect树结构实体类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class TreeSelect implements Serializable
 {

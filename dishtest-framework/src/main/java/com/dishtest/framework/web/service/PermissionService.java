@@ -11,9 +11,9 @@ import com.dishtest.common.utils.StringUtils;
 import com.dishtest.framework.security.context.PermissionContextHolder;
 
 /**
- * RuoYi首创 自定义权限实现，ss取自SpringSecurity首字母
+ * DishTest首创 自定义权限实现，ss取自SpringSecurity首字母
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Service("ss")
 public class PermissionService

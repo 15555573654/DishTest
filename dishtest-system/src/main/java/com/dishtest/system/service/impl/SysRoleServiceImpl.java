@@ -27,7 +27,7 @@ import com.dishtest.system.service.ISysRoleService;
 /**
  * 角色 业务层处理
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Service
 public class SysRoleServiceImpl implements ISysRoleService

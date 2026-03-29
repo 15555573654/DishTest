@@ -26,7 +26,7 @@ import com.dishtest.system.service.ISysUserOnlineService;
 /**
  * 在线用户监控
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 @RequestMapping("/monitor/online")

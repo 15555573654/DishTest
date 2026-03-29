@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.control
+package com.dishtest.screencast.control
 
 import android.os.SystemClock
 import android.util.Log

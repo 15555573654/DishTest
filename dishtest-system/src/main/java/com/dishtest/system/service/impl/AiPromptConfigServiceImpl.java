@@ -11,7 +11,7 @@ import com.dishtest.system.service.IAiPromptConfigService;
 /**
  * AI提示词配置Service业务层处理
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2026-02-16
  */
 @Service

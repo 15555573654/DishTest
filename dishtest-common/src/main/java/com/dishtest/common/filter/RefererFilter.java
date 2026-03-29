@@ -15,7 +15,7 @@ import javax.servlet.http.HttpServletResponse;
 /**
  * 防盗链过滤器
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class RefererFilter implements Filter
 {

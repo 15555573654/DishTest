@@ -14,7 +14,7 @@ import com.dishtest.system.service.ISysConfigService;
 /**
  * 注册验证
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestController
 public class SysRegisterController extends BaseController

@@ -1,4 +1,4 @@
-若依投屏 - Android设备端
+DishTest投屏 - Android设备端
 
 项目结构：
 - app/src/main/java/com/ruoyi/screencast/

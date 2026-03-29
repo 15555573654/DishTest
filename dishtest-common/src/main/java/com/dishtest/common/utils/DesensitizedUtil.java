@@ -3,7 +3,7 @@ package com.dishtest.common.utils;
 /**
  * 脱敏工具类
  *
- * @author ruoyi
+ * @author dishtest
  */
 public class DesensitizedUtil
 {

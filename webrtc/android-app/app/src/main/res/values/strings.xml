@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">若依投屏</string>
+    <string name="app_name">DishTest投屏</string>
     <string name="accessibility_service_description">允许远程控制设备，包括点击、滑动等操作</string>
     <string name="notification_channel_name">投屏服务</string>
     <string name="notification_channel_desc">投屏服务运行通知</string>

@@ -6,7 +6,7 @@ import com.dishtest.common.utils.DesensitizedUtil;
 /**
  * 脱敏类型
  *
- * @author ruoyi
+ * @author dishtest
  */
 public enum DesensitizedType
 {

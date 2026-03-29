@@ -9,7 +9,7 @@ import com.dishtest.common.core.domain.BaseEntity;
 /**
  * 系统访问记录表 sys_logininfor
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class SysLogininfor extends BaseEntity
 {

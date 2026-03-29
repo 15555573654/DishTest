@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.mqtt
+package com.dishtest.screencast.mqtt
 
 import android.content.Context
 import org.eclipse.paho.client.mqttv3.*

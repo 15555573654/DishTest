@@ -3,7 +3,7 @@ package com.dishtest.common.exception;
 /**
  * 工具类异常
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class UtilException extends RuntimeException
 {

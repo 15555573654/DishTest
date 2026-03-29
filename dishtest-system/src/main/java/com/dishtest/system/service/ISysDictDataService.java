@@ -6,7 +6,7 @@ import com.dishtest.common.core.domain.entity.SysDictData;
 /**
  * 字典 业务层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface ISysDictDataService
 {

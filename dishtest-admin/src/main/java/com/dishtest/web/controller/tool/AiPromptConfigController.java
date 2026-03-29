@@ -24,7 +24,7 @@ import com.dishtest.common.core.page.TableDataInfo;
 /**
  * AI提示词配置Controller
  * 
- * @author ruoyi
+ * @author dishtest
  * @date 2026-02-16
  */
 @RestController

@@ -6,7 +6,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * 定时任务调度测试
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Component("ryTask")
 public class RyTask

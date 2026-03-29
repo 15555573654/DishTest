@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.control
+package com.dishtest.screencast.control
 
 /**
  * 控制消息数据类

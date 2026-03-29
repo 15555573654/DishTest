@@ -7,7 +7,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * 字符集工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class CharsetKit
 {

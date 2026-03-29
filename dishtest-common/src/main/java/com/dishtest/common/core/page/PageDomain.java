@@ -5,7 +5,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * 分页数据
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class PageDomain
 {

@@ -3,7 +3,7 @@ package com.dishtest.system.service;
 /**
  * 测试用例导出服务接口
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface ITestCaseExportService 
 {

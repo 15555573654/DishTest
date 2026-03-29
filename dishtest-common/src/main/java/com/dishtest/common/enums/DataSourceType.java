@@ -3,7 +3,7 @@ package com.dishtest.common.enums;
 /**
  * 数据源
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public enum DataSourceType
 {

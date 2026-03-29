@@ -1,4 +1,4 @@
-package com.ruoyi.screencast.control
+package com.dishtest.screencast.control
 
 import android.content.ClipData
 import android.content.ClipboardManager

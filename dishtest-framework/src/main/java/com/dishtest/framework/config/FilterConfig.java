@@ -17,7 +17,7 @@ import com.dishtest.common.utils.StringUtils;
 /**
  * Filter配置
  *
- * @author ruoyi
+ * @author dishtest
  */
 @Configuration
 public class FilterConfig

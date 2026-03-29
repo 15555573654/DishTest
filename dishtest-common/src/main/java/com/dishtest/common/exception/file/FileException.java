@@ -5,7 +5,7 @@ import com.dishtest.common.exception.base.BaseException;
 /**
  * 文件信息异常类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class FileException extends BaseException
 {

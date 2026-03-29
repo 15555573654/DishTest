@@ -3,7 +3,7 @@ package com.dishtest.common.utils.uuid;
 /**
  * ID生成器工具类
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class IdUtils
 {

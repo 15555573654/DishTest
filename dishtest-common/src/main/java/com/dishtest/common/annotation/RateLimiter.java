@@ -11,7 +11,7 @@ import com.dishtest.common.enums.LimitType;
 /**
  * 限流注解
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

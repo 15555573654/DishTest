@@ -3,7 +3,7 @@ package com.dishtest.common.exception;
 /**
  * 全局异常
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class GlobalException extends RuntimeException
 {

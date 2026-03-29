@@ -8,7 +8,7 @@ import com.dishtest.system.domain.SysUserRole;
 /**
  * 角色业务层
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public interface ISysRoleService
 {

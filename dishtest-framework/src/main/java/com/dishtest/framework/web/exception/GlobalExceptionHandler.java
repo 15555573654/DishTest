@@ -22,7 +22,7 @@ import com.dishtest.common.utils.html.EscapeUtil;
 /**
  * 全局异常处理器
  * 
- * @author ruoyi
+ * @author dishtest
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler

@@ -22,7 +22,7 @@ import com.dishtest.common.utils.ip.IpUtils;
 /**
  * 限流处理
  *
- * @author ruoyi
+ * @author dishtest
  */
 @Aspect
 @Component

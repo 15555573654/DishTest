@@ -3,7 +3,7 @@ package com.dishtest.common.core.domain.model;
 /**
  * 用户登录对象
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public class LoginBody
 {

@@ -3,7 +3,7 @@ package com.dishtest.common.enums;
 /**
  * 业务操作类型
  * 
- * @author ruoyi
+ * @author dishtest
  */
 public enum BusinessType
 {
