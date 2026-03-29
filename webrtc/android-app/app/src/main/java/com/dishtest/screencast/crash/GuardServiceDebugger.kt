@@ -39,7 +39,7 @@ object GuardServiceDebugger {
             Log.d(TAG, "Service: $serviceName")
         }
         
-        val guardServiceName = "com.ruoyi.screencast.crash.ProcessGuardService"
+        val guardServiceName = "com.dishtest.screencast.crash.ProcessGuardService"
         val hasGuardService = services.any { it.contains("ProcessGuardService") }
         sb.appendLine("\n守护服务状态: ${if (hasGuardService) "✓ 运行中" else "✗ 未运行"}")
         Log.d(TAG, "Guard service status: ${if (hasGuardService) "RUNNING" else "NOT RUNNING"}")

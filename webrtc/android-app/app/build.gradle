@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.ruoyi.screencast'
+    namespace 'com.dishtest.screencast'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.ruoyi.screencast"
+        applicationId "com.dishtest.screencast"
         minSdk 21
         targetSdk 34
         versionCode 1

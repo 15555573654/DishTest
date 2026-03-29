@@ -11,13 +11,13 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.ruoyi.screencast.databinding.ActivityMainBinding
-import com.ruoyi.screencast.service.ScreenCaptureService
-import com.ruoyi.screencast.webrtc.WebRTCManager
-import com.ruoyi.screencast.mqtt.MqttManager
-import com.ruoyi.screencast.apk.ApkInstallManager
-import com.ruoyi.screencast.file.FileReceiveManager
-import com.ruoyi.screencast.file.FileBrowserManager
+import com.dishtest.screencast.databinding.ActivityMainBinding
+import com.dishtest.screencast.service.ScreenCaptureService
+import com.dishtest.screencast.webrtc.WebRTCManager
+import com.dishtest.screencast.mqtt.MqttManager
+import com.dishtest.screencast.apk.ApkInstallManager
+import com.dishtest.screencast.file.FileReceiveManager
+import com.dishtest.screencast.file.FileBrowserManager
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -344,7 +344,7 @@ class MainActivity : AppCompatActivity() {
         val handler = android.os.Handler(mainLooper)
         val checkRunnable = object : Runnable {
             override fun run() {
-                if (com.ruoyi.screencast.webrtc.AccessibilityHelper.isServiceConnected()) {
+                if (com.dishtest.screencast.webrtc.AccessibilityHelper.isServiceConnected()) {
                     log("✓ 无障碍服务已启用，设备控制功能现在可用")
                     Toast.makeText(this@MainActivity, "无障碍服务已启用！", Toast.LENGTH_SHORT).show()
                 } else {
@@ -370,7 +370,7 @@ class MainActivity : AppCompatActivity() {
             android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )
         
-        val serviceName = "${packageName}/${com.ruoyi.screencast.service.AccessibilityControlService::class.java.name}"
+        val serviceName = "${packageName}/${com.dishtest.screencast.service.AccessibilityControlService::class.java.name}"
         return enabledServices?.contains(serviceName) == true
     }
     
@@ -378,7 +378,7 @@ class MainActivity : AppCompatActivity() {
         // 延迟检查，给应用启动时间
         binding.root.postDelayed({
             val isServiceEnabled = isAccessibilityServiceEnabled()
-            val isServiceConnected = com.ruoyi.screencast.webrtc.AccessibilityHelper.isServiceConnected()
+            val isServiceConnected = com.dishtest.screencast.webrtc.AccessibilityHelper.isServiceConnected()
             
             log("无障碍服务状态检查: 系统启用=$isServiceEnabled, 服务连接=$isServiceConnected")
             
@@ -697,7 +697,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun openCrashLogs() {
         try {
-            val intent = Intent(this, com.ruoyi.screencast.crash.CrashLogActivity::class.java)
+            val intent = Intent(this, com.dishtest.screencast.crash.CrashLogActivity::class.java)
             startActivity(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "打开崩溃日志失败: ${e.message}", Toast.LENGTH_SHORT).show()

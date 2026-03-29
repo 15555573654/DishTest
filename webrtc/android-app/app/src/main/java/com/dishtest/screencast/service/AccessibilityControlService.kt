@@ -7,7 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import com.ruoyi.screencast.webrtc.AccessibilityHelper
+import com.dishtest.screencast.webrtc.AccessibilityHelper
 
 class AccessibilityControlService : AccessibilityService() {
     

@@ -9,8 +9,8 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.ruoyi.screencast.MainActivity
-import com.ruoyi.screencast.R
+import com.dishtest.screencast.MainActivity
+import com.dishtest.screencast.R
 import java.io.File
 
 /**

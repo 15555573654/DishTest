@@ -9,8 +9,8 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import com.ruoyi.screencast.MainActivity
-import com.ruoyi.screencast.R
+import com.dishtest.screencast.MainActivity
+import com.dishtest.screencast.R
 
 class ScreenCaptureService : Service() {
     

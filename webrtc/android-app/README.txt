@@ -1,7 +1,7 @@
 DishTest投屏 - Android设备端
 
 项目结构：
-- app/src/main/java/com/ruoyi/screencast/
+- app/src/main/java/com/dishtest/screencast/
   - MainActivity.kt - 主界面
   - mqtt/MqttManager.kt - MQTT连接管理
   - webrtc/WebRTCManager.kt - WebRTC连接管理

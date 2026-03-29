@@ -4,8 +4,8 @@ import android.app.Application
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import com.ruoyi.screencast.crash.CrashHandler
-import com.ruoyi.screencast.crash.ProcessGuardService
+import com.dishtest.screencast.crash.CrashHandler
+import com.dishtest.screencast.crash.ProcessGuardService
 
 /**
  * 应用程序类

@@ -15,8 +15,8 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.ruoyi.screencast.mqtt.MqttManager
-import com.ruoyi.screencast.service.ScreenCaptureService
+import com.dishtest.screencast.mqtt.MqttManager
+import com.dishtest.screencast.service.ScreenCaptureService
 import org.webrtc.*
 import kotlin.math.hypot
 import kotlin.math.roundToInt

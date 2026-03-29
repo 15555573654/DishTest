@@ -1,7 +1,7 @@
 package com.dishtest.screencast.webrtc
 
 import android.util.Log
-import com.ruoyi.screencast.service.AccessibilityControlService
+import com.dishtest.screencast.service.AccessibilityControlService
 
 object AccessibilityHelper {
     
